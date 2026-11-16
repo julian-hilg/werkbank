@@ -1,0 +1,25 @@
+{
+  "name": "@werkbank/bridge",
+  "version": "0.6.0",
+  "type": "module",
+  "bin": {
+    "werkbank-bridge": "./src/server.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "ws": "^8.23.0",
+    "zod": "^4.6.7"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/julian-hilg/werkbank.git",
+    "directory": "packages/bridge"
+  },
+  "files": [
+    "src"
+  ],
+  "description": "Connects coding agents to a running Werkbank app over MCP.",
+  "author": "Julian Hilg",
+  "homepage": "https://github.com/julian-hilg/werkbank#readme"
+}

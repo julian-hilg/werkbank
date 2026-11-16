@@ -1,0 +1,52 @@
+{
+  "name": "@werkbank/framework",
+  "version": "0.6.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "werkbank-source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./core": {
+      "werkbank-source": "./src/core/index.ts",
+      "types": "./dist/core/index.d.ts",
+      "default": "./dist/core/index.js"
+    },
+    "./styles.css": {
+      "werkbank-source": "./src/themes/werkbank.css",
+      "default": "./dist/styles.css"
+    }
+  },
+  "peerDependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "dependencies": {
+    "react-markdown": "^10.1.0",
+    "react-resizable-panels": "4.24.0",
+    "remark-gfm": "^4.0.1",
+    "zod": "^4.6.7"
+  },
+  "files": [
+    "dist",
+    "CHANGELOG.md",
+    "GUIDE.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && cp src/themes/werkbank.css dist/styles.css",
+    "prepare": "tsc -p tsconfig.build.json && cp src/themes/werkbank.css dist/styles.css"
+  },
+  "sideEffects": [
+    "*.css"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/julian-hilg/werkbank.git",
+    "directory": "packages/framework"
+  },
+  "description": "Dockable workspaces that people and AI agents operate together: shell, core, assistant and controls.",
+  "author": "Julian Hilg",
+  "homepage": "https://github.com/julian-hilg/werkbank#readme"
+}

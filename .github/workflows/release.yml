@@ -1,0 +1,28 @@
+name: Release
+# Pushing a tag like v0.6.0 publishes the three packages as tarballs on a GitHub release.
+# Apps install those tarballs; "npm run werkbank:update" in an app moves it to the newest one.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: The tag must match the packages' version
+        run: test "v$(node -p "require('./packages/framework/package.json').version")" = "$GITHUB_REF_NAME"
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run check:app
+      - run: gh release create "$GITHUB_REF_NAME" release/*.tgz --title "$GITHUB_REF_NAME" --notes "See packages/framework/CHANGELOG.md for what changed."
+        env:
+          GH_TOKEN: ${{ github.token }}

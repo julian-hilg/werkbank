@@ -1,0 +1,198 @@
+/* Styles for the Pipeline, Correlation network and Text diff tools. Werkbank tokens only. */
+
+/* ---- pipeline ------------------------------------------------------------- */
+/* Like .st-fill, but it scrolls when the graph cannot shrink any further. */
+.sx-scroll {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;
+}
+.sx-pipeline {
+  display: block;
+}
+.sx-node {
+  cursor: pointer;
+  outline: none;
+  transition: opacity 120ms;
+}
+.sx-node rect {
+  fill: var(--wb-canvas-alt);
+  stroke: var(--wb-border);
+  stroke-width: 1;
+}
+.sx-node:hover rect {
+  fill: var(--wb-hover);
+}
+/* Selection is a heavier outline as well as the accent. */
+.sx-node[data-selected="true"] rect {
+  stroke: var(--wb-accent);
+  stroke-width: 3;
+}
+.sx-node:focus-visible rect {
+  stroke: var(--wb-text);
+  stroke-width: 2;
+  stroke-dasharray: 4 2;
+}
+.sx-node[data-status="failed"] rect {
+  stroke-dasharray: 6 3;
+}
+.sx-node-name {
+  fill: var(--wb-text);
+  font-family: var(--wb-font);
+  font-size: 12px;
+  font-weight: 600;
+}
+.sx-edge {
+  transition: opacity 120ms;
+}
+.sx-edge path {
+  stroke: var(--wb-text-dim);
+  stroke-width: 1.25;
+}
+.sx-edge polygon {
+  fill: var(--wb-text-dim);
+}
+/* Edges on the selected job's paths are heavier as well as accented. */
+.sx-edge[data-on="true"] path {
+  stroke: var(--wb-accent);
+  stroke-width: 2.5;
+}
+.sx-edge[data-on="true"] polygon {
+  fill: var(--wb-accent);
+}
+
+/* ---- correlation network -------------------------------------------------- */
+.sx-network {
+  display: block;
+  touch-action: none;
+  user-select: none;
+}
+.sx-net-node {
+  cursor: grab;
+  outline: none;
+}
+.sx-net-node[data-dragging="true"] {
+  cursor: grabbing;
+}
+.sx-net-node:focus-visible text {
+  text-decoration: underline;
+}
+.sx-legend {
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  white-space: pre;
+}
+.sx-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.sx-key svg {
+  flex: none;
+}
+
+/* ---- text diff ------------------------------------------------------------ */
+.sx-diff {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: var(--wb-canvas);
+}
+.sx-diff-table {
+  min-width: 100%;
+  border-collapse: collapse;
+  font-family: var(--wb-mono);
+  font-size: var(--wb-font-size);
+  line-height: 1.45;
+}
+.sx-diff-table th {
+  position: sticky;
+  top: 0;
+  padding: 1px 8px;
+  text-align: left;
+  font-family: var(--wb-font);
+  font-weight: 600;
+  color: var(--wb-text-dim);
+  background: var(--wb-canvas-alt);
+  border-bottom: 1px solid var(--wb-grid);
+}
+.sx-diff-table td {
+  padding: 0 6px;
+  vertical-align: top;
+}
+.sx-diff-no {
+  width: 1%;
+  min-width: 30px;
+  text-align: right;
+  color: var(--wb-text-dim);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+  white-space: nowrap;
+}
+.sx-diff-mark {
+  width: 1%;
+  min-width: 14px;
+  text-align: center;
+  font-weight: 700;
+  color: var(--wb-text);
+  user-select: none;
+}
+.sx-diff-text {
+  white-space: pre;
+  color: var(--wb-text);
+}
+.sx-diff-table[data-view="split"] .sx-diff-text {
+  width: 50%;
+}
+.sx-diff-table[data-view="split"] th:first-child {
+  border-right: 1px solid var(--wb-grid);
+}
+/* Tints: in the unified view on the whole row, side by side on each half. */
+.sx-diff-table tr[data-kind="added"] td,
+.sx-diff-table td[data-kind="added"],
+.sx-diff-table td[data-kind="added"] + .sx-diff-mark {
+  background: color-mix(in oklab, var(--wb-good) 18%, var(--wb-canvas));
+}
+.sx-diff-table tr[data-kind="removed"] td,
+.sx-diff-table td[data-kind="removed"],
+.sx-diff-table td[data-kind="removed"] + .sx-diff-mark {
+  background: color-mix(in oklab, var(--wb-bad) 18%, var(--wb-canvas));
+}
+.sx-diff-blank {
+  background: var(--wb-canvas-alt);
+}
+.sx-diff-edit {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 4px 8px 6px;
+  height: 38%;
+  min-height: 110px;
+  border-bottom: 1px solid var(--wb-grid);
+}
+.sx-diff-edit label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  min-height: 0;
+  color: var(--wb-text);
+}
+.sx-diff-edit textarea {
+  flex: 1;
+  min-height: 0;
+  padding: 4px 6px;
+  resize: none;
+  font-family: var(--wb-mono);
+  font-size: var(--wb-font-size);
+  color: var(--wb-text);
+  background: var(--wb-canvas);
+  border: 1px solid var(--wb-border);
+  border-radius: var(--wb-radius);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sx-node,
+  .sx-edge { transition: none; }
+}

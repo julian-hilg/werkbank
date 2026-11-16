@@ -1,0 +1,8 @@
+node_modules
+dist
+.superpowers
+*.log
+vendor
+release
+scripts/shots
+.DS_Store

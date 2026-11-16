@@ -1,0 +1,35 @@
+{
+  "name": "@werkbank/chart-libraries",
+  "version": "0.6.0",
+  "type": "module",
+  "description": "Popular charting libraries, packed so sandboxed custom elements can load them without network access.",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    }
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "vendor"
+  ],
+  "scripts": {
+    "prepare": "node vendor.mjs"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/julian-hilg/werkbank.git",
+    "directory": "packages/chart-libraries"
+  },
+  "devDependencies": {
+    "chart.js": "^4.4.0",
+    "d3": "^7.9.0",
+    "echarts": "^6.0.0",
+    "lightweight-charts": "^5.0.0",
+    "plotly.js-dist-min": "^3.0.0"
+  },
+  "author": "Julian Hilg",
+  "homepage": "https://github.com/julian-hilg/werkbank#readme"
+}

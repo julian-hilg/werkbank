@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "werkbank": {
+      "command": "node",
+      "args": ["packages/bridge/src/server.js"]
+    }
+  }
+}

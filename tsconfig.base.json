@@ -1,0 +1,8 @@
+{
+  "compilerOptions": {
+    "target": "ES2022", "module": "ESNext", "moduleResolution": "Bundler",
+    "jsx": "react-jsx", "strict": true, "noEmit": true, "skipLibCheck": true,
+    "noUncheckedIndexedAccess": true, "isolatedModules": true, "customConditions": ["werkbank-source"], "resolveJsonModule": true,
+    "lib": ["ES2023", "DOM", "DOM.Iterable"], "types": ["node"]
+  }
+}
