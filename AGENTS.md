@@ -6,7 +6,10 @@ together: the shell and core (`packages/framework`), an agent bridge
 (`packages/chart-libraries`) and a reference app (`starter/`).
 
 - Working on Werkbank itself: this file and `DEVELOPMENT.md`.
-- Building an app on Werkbank: `packages/framework/GUIDE.md`.
+- Building an app on Werkbank: `packages/framework/GUIDE.md`, and the
+  `werkbank-app` skill in `packages/framework/skills/werkbank-app/` (backend
+  first, then frontend). It also applies to work on the starter's own panels
+  and stores.
 - Why it is built this way: `docs/design.md`.
 
 ## Commands
@@ -18,6 +21,7 @@ together: the shell and core (`packages/framework`), an agent bridge
 - `npm run typecheck`, `npm run build`
 - `npm run check:app`: a packed release installs, builds and updates in a fresh app
 - `npm run new:tool -- <id> "Title"`: scaffold a tool in the starter
+- `npm run skill:install`: install the `werkbank-app` skill for your own agent sessions
 
 A change is done when `npm test`, `npm run typecheck` and `npm run check` pass.
 Green unit tests alone are not acceptance for anything that touches the screen.

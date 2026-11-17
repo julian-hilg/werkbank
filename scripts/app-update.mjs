@@ -8,7 +8,7 @@
 // It rewrites the three @werkbank dependencies, installs, and type-checks the app. The framework's types are the
 // first line of defence: anything an update removed or renamed fails to compile. Then read the changelog it points to.
 import { execSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 
 const PACKAGES = ["framework", "bridge", "chart-libraries"];
@@ -56,6 +56,13 @@ console.log(`Moving to ${describe}…`);
 execSync("npm install", { stdio: "inherit" });
 const after = installed();
 console.log(`\nWerkbank ${before} -> ${after}`);
+// The development skill for coding agents ships in the package; keep the app's copy at the installed version.
+const skill = "node_modules/@werkbank/framework/skills/werkbank-app";
+if (existsSync(skill)) {
+  rmSync(".claude/skills/werkbank-app", { recursive: true, force: true });
+  cpSync(skill, ".claude/skills/werkbank-app", { recursive: true, dereference: true });
+  console.log("Refreshed the development skill in .claude/skills/werkbank-app.");
+}
 try {
   execSync("npm run typecheck", { stdio: "inherit" });
   console.log("\nThe app type-checks against the new version.");
@@ -65,4 +72,5 @@ try {
 }
 console.log(`Changelog: node_modules/@werkbank/framework/CHANGELOG.md
 Agent guide: node_modules/@werkbank/framework/GUIDE.md
+Agent skill: .claude/skills/werkbank-app/SKILL.md
 Then open the app with a workspace saved under the old version; notices about repaired panels appear in the status bar.`);

@@ -31,7 +31,8 @@
   "files": [
     "dist",
     "CHANGELOG.md",
-    "GUIDE.md"
+    "GUIDE.md",
+    "skills"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json && cp src/themes/werkbank.css dist/styles.css",

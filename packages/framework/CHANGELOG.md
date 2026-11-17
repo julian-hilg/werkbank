@@ -14,6 +14,7 @@ Added
 - Documentation in the settings window: the framework's pages, preceded by the app's own (`docs` in the config). Commands `docs.open` and `docs.list`; `settings.open` takes a `section`.
 - `GUIDE.md` in the package: the guide for coding agents building an app.
 - Releases as package tarballs, and `npm run werkbank:update` in scaffolded apps.
+- A skill for coding agents that build apps, `skills/werkbank-app/` in the package: the order of work (backend, then frontend), patterns for stores, commands and panels, a rule check and a script for the dev processes. Scaffolded apps get it in `.claude/skills/`, with `npm run check:rules`, `dev:status` and `dev:stop`, and an `.mcp.json` for the app's bridge; `werkbank:update` refreshes it.
 
 ## 0.5.0
 

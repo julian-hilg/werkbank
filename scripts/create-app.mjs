@@ -5,7 +5,7 @@
 //   --from release  depend on the published release of this version on GitHub: for a real project
 //   --from <dir>    depend on package tarballs in a folder (what `npm run pack` writes)
 import { execSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -60,6 +60,10 @@ const files = {
         typecheck: "tsc --noEmit",
         // Moves the app to another version of the framework. See scripts/werkbank.mjs.
         "werkbank:update": "node scripts/werkbank.mjs",
+        // From the development skill in .claude/skills/werkbank-app.
+        "check:rules": "node .claude/skills/werkbank-app/scripts/check.mjs",
+        "dev:status": "node .claude/skills/werkbank-app/scripts/dev.mjs status",
+        "dev:stop": "node .claude/skills/werkbank-app/scripts/dev.mjs stop",
       },
       werkbank: { repo: REPO_SLUG },
       // The framework is a dependency. To update it, point these at a newer version and read its CHANGELOG.
@@ -225,16 +229,26 @@ An app built on [Werkbank](https://github.com/${REPO_SLUG}): dockable workspaces
 coding agents and matches the installed version: how to add panels, commands, settings, forms, charts,
 workspaces and documentation, and the rules that keep an app updatable.
 
+**Then work in the order of \`.claude/skills/werkbank-app/SKILL.md\`: backend, then frontend.** Agents that load
+skills pick it up by themselves; others read that file and the two it links to. In short: the record schema,
+the store and the commands come first and are finished when an agent could do the task with no panel on screen;
+panels come second and only show data and call commands.
+
 ## Commands
 
 - \`npm run dev\`: the app at http://localhost:5200 and the agent bridge on port 8787
 - \`npm run typecheck\`, \`npm run build\`
 - \`npm run werkbank:update\`: move to the newest framework release (\`-- <version>\` for a specific one)
+- \`npm run check:rules\`: the rules a compiler does not see (literal colours, native dropdowns, panels without \`describe\` …)
+- \`npm run dev:status\`, \`npm run dev:stop\`: what is running on the app's and the bridge's port, and stopping it
 
 ## Where things are
 
 - \`src/app.ts\`: the app's identity (name, logo), tools, topics, commands, settings, documentation pages and workspaces
-- \`src/tools/\`: one file per panel type
+- \`src/tools/\`: one file per panel type (frontend)
+- \`src/<domain>/\`: \`store.ts\`, \`commands.ts\`, \`hooks.ts\` for each kind of data the app holds (backend)
+- \`.mcp.json\`: registers the running app's bridge with your coding agent, so you can read and drive the app
+- \`.claude/skills/werkbank-app/\`: the development skill; \`npm run werkbank:update\` refreshes it
 - \`public/\`: static files, including the logo
 
 ## Rules
@@ -248,6 +262,8 @@ workspaces and documentation, and the rules that keep an app updatable.
 - Do not commit unless asked.
 `,
   "scripts/werkbank.mjs": readFileSync(join(repo, "scripts", "app-update.mjs"), "utf8"),
+  // Lets a coding agent started in this folder read and drive the running app (the same tools the in-app assistant has).
+  ".mcp.json": JSON.stringify({ mcpServers: { [id]: { command: "npx", args: ["werkbank-bridge"] } } }, null, 2) + "\n",
   ".gitignore": "node_modules\ndist\n",
 };
 
@@ -255,6 +271,8 @@ for (const [path, text] of Object.entries(files)) {
   mkdirSync(dirname(join(target, path)), { recursive: true });
   writeFileSync(join(target, path), text);
 }
+// The development skill for coding agents. It ships in the framework package; "npm run werkbank:update" refreshes this copy.
+cpSync(join(repo, "packages", "framework", "skills", "werkbank-app"), join(target, ".claude", "skills", "werkbank-app"), { recursive: true });
 console.log(`Created "${title}" in ${target}
 
 Next:
@@ -263,4 +281,5 @@ Next:
   npm run dev        # http://localhost:5200
 
 The framework comes from ${from === "local" ? `this checkout (${repo})` : from === "release" ? `release v${VERSION} on GitHub` : resolve(from)}.
-"npm run werkbank:update" in the app moves it to another version; docs/upgrading.md explains what an update can change.`);
+"npm run werkbank:update" in the app moves it to another version; docs/upgrading.md explains what an update can change.
+Coding agents find the development skill in .claude/skills/werkbank-app (backend first, then frontend).`);

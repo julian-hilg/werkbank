@@ -34,6 +34,7 @@ Node.js 22 or newer. The repository is an npm workspace:
 | `npm run perf` | Frame pacing under the live feed, per workspace |
 | `npm run new:tool -- <id> "Title"` | Scaffolds a panel in the reference app |
 | `npm run new:app -- <folder> "Title"` | Scaffolds a new app (`--from release` to depend on the published release) |
+| `npm run skill:install [-- <folder>]` | Copies the `werkbank-app` skill to `~/.claude/skills`, or to one app's `.claude/skills` |
 
 A change is done when `npm test`, `npm run typecheck` and `npm run check` pass.
 Unit tests alone are not acceptance for anything that touches the screen.
@@ -89,6 +90,20 @@ a promise. Within a major version:
   The guide ships in the package, so apps always have the one for their version.
 - `npm run check:app` must pass: it is the test that a release still works in
   an app that was not written in this repository.
+
+## The skill for app developers
+
+`packages/framework/skills/werkbank-app/` is a skill for coding agents that
+build apps on Werkbank: the order of work (backend, then frontend), the
+patterns to copy, a rule check and a script for the two dev processes. It is
+kept in the package so it ships with every release; `.claude/skills/werkbank-app`
+in this repository is a link to it, the scaffold copies it into each new app,
+and `werkbank:update` refreshes that copy.
+
+- It says how to work; `GUIDE.md` says what the API is. Do not repeat the
+  guide in it, and change both when the way to build something changes.
+- A rule added to `scripts/check.mjs` must pass on the starter and on a fresh
+  app. `npm run check:app` runs it on one, and on a deliberately broken tool.
 
 ## Releasing
 

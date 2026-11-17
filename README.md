@@ -27,6 +27,7 @@ Every action is a command, every panel can describe its data, and any coding age
 - **A framework, not a template.** An app depends on Werkbank as a package and owns only its panels, commands, settings and workspaces. `npm run werkbank:update` brings in a new framework version.
 - **Its own controls and themes.** Dropdowns, searchable selects and search fields with previews look the same in every browser. A theme is one block of tokens; three ship.
 - **Documented where it is used.** Every app has a Documentation section in its settings, and the package carries a guide for coding agents that build on it.
+- **A skill for building on it.** Every new app comes with a skill that takes a coding agent through a feature in a fixed order, backend then frontend, with a rule check at the end, so apps built by different people and agents come out alike.
 
 ## How it fits together
 
@@ -100,11 +101,32 @@ export const werkbank = new Werkbank({
 
 | If you are | Read |
 | --- | --- |
+| A coding agent building an app | The [`werkbank-app` skill](packages/framework/skills/werkbank-app/SKILL.md), which every new app has in `.claude/skills/` |
 | Building an app, or a coding agent doing so | [`packages/framework/GUIDE.md`](packages/framework/GUIDE.md): panels, commands, settings, forms, charts, workspaces, agents, and the rules that keep an app updatable |
 | Updating an app to a new version | [`docs/upgrading.md`](docs/upgrading.md) |
 | Working on Werkbank itself | [`DEVELOPMENT.md`](DEVELOPMENT.md) |
 | Curious why it is built this way | [`docs/design.md`](docs/design.md) |
 | Letting people build panels in your app | [`docs/custom-elements.md`](docs/custom-elements.md) |
+
+### Building with a coding agent: the `werkbank-app` skill
+
+An app has two halves. The **backend** is its data and what can be done with it: one schema per record, a store that holds facts, and commands with a risk class and an undo. The **frontend** is the panels that show that data and call those commands. The skill makes an agent build them in that order, and treats the backend as finished only when an agent could do the task with no panel on screen. That is what keeps every panel readable and operable over MCP.
+
+```mermaid
+flowchart LR
+  O["Orient<br/>what runs, what src/app.ts lists"] --> B["Backend<br/>schema, store, commands"]
+  B --> F["Frontend<br/>hook, panel with describe(),<br/>workspace, documentation"]
+  F --> V["Verify<br/>type-check, rule check,<br/>the running app over MCP, the screen"]
+```
+
+| The skill gives an agent | |
+| --- | --- |
+| `SKILL.md` | The workflow and the rules that do not bend |
+| `backend.md`, `frontend.md` | The patterns to copy, each with a checklist |
+| `npm run check:rules` | Finds literal colours, native dropdowns, imports from inside the packages, panels without `describe`, panels using browser storage, Alt-key shortcuts and unlisted tools |
+| `npm run dev:status`, `dev:stop` | Shows what answers on the app's and the bridge's port and which process holds them, and stops the ones that belong to the app |
+
+An app made with `npm run new:app` has the skill in `.claude/skills/werkbank-app/`, where Claude Code loads it by itself, and `npm run werkbank:update` keeps it at the installed framework version. Other agents are pointed to it by the app's `AGENTS.md`. To have it in every project, or in an app made before it existed, see [INSTALL.md](INSTALL.md#the-skill-for-coding-agents). It is for building apps; panels made inside a running app with the Crafter follow [`docs/custom-elements.md`](docs/custom-elements.md).
 
 ### How a framework update reaches an app
 
@@ -134,7 +156,8 @@ flowchart LR
 | `packages/bridge` | The local process that connects agents to a running app over MCP, and starts an agent for the in-app assistant |
 | `packages/chart-libraries` | Chart libraries packed for sandboxed custom elements |
 | `starter/` | The reference app: some forty panel types in six workspaces |
-| `scripts/` | App scaffold, release packing, and the browser checks |
+| `packages/framework/skills/werkbank-app` | The skill for coding agents that build apps; shipped in the package and copied into every new app |
+| `scripts/` | App scaffold, release packing, skill install, and the browser checks |
 
 ## The reference app
 

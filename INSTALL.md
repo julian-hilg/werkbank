@@ -41,8 +41,36 @@ checkout instead, which is what you want while changing the framework and an
 app together.
 
 The new app contains its definition (`src/app.ts`), one example panel, an
-`AGENTS.md` for coding agents, and `npm run werkbank:update` for moving to a
-newer framework version.
+`AGENTS.md` and the `werkbank-app` skill for coding agents, an `.mcp.json`
+that lets an agent started in the app's folder drive the running app, and
+`npm run werkbank:update` for moving to a newer framework version.
+
+## The skill for coding agents
+
+`werkbank-app` is a skill that takes a coding agent through building a feature
+in a fixed order: backend (schema, store, commands), then frontend (panels,
+workspaces, documentation), then proof in the running app. It is what keeps
+apps consistent with each other.
+
+| Where you work | What to do |
+| --- | --- |
+| An app made with `npm run new:app` | Nothing. The skill is in `.claude/skills/werkbank-app/`; Claude Code loads it when you ask for a change to the app. Commit that folder with the app. |
+| The Werkbank checkout | Nothing. `.claude/skills/werkbank-app` is in the repository. |
+| Every project on your machine | `npm run skill:install` in the Werkbank checkout. It copies the skill to `~/.claude/skills/werkbank-app`. |
+| An app that does not have it yet | `npm run skill:install -- ../my-app` in the Werkbank checkout, or `npm run werkbank:update` in the app. |
+
+Start a new agent session afterwards. To check that it is there, ask the agent
+"which skills do you have for Werkbank?", or type `/werkbank-app` in Claude Code.
+Agents that do not load skills read the same files: the app's `AGENTS.md`
+points to `.claude/skills/werkbank-app/SKILL.md`.
+
+The skill also gives an app three commands that need no agent:
+
+```bash
+npm run check:rules   # rules a compiler does not see: literal colours, native dropdowns, panels without describe …
+npm run dev:status    # what answers on the app's port and the bridge's, and which process holds them
+npm run dev:stop      # stop this app's dev server and bridge
+```
 
 ## Connect a coding agent to a running app
 
@@ -67,20 +95,28 @@ Paste one of these into your coding agent.
 
 **To start an app of my own on Werkbank:**
 
-> Please create a new app on the Werkbank framework. Clone `https://github.com/julian-hilg/werkbank.git` next to where the app should live and run `npm install` in it. Then run `npm run new:app -- <path-to-my-app> "<App title>" --from release` there, and `npm install` in the new app. Before writing any code, read `AGENTS.md` in the new app and `node_modules/@werkbank/framework/GUIDE.md`, and follow them: every action is a command, every panel returns its data from `describe`, and the framework in `node_modules` is never edited. Start the app with `npm run dev`, confirm it opens at http://localhost:5200, and then ask me what the app is for before building panels.
+> Please create a new app on the Werkbank framework. Clone `https://github.com/julian-hilg/werkbank.git` next to where the app should live and run `npm install` in it. Then run `npm run new:app -- <path-to-my-app> "<App title>" --from release` there, and `npm install` in the new app. Before writing any code, read `AGENTS.md` in the new app, `node_modules/@werkbank/framework/GUIDE.md` and the skill in `.claude/skills/werkbank-app/SKILL.md`, and follow them: build the backend of a feature (schema, store, commands) before its panels, every action is a command, every panel returns its data from `describe`, and the framework in `node_modules` is never edited. Start the app with `npm run dev`, confirm it opens at http://localhost:5200, and then ask me what the app is for before building panels.
 
 **To update an app to the newest Werkbank:**
 
 > Please update this app to the newest Werkbank release: run `npm run werkbank:update`. If the type-check it runs fails, read `node_modules/@werkbank/framework/CHANGELOG.md` for the versions in between and adapt the app's code; do not edit anything inside `node_modules`. Then start the app, open a workspace that was saved before the update, and tell me about any notices in the status bar.
 
+**To build a feature in an app:**
+
+> Please add <what the feature does> to this app, using the `werkbank-app` skill: backend first (one schema for the record, a store, commands with the right risk and an undo), then the panel, then verify it in the running app through the bridge's MCP tools and with `npm run check:rules`. Tell me what you verified and what you could not.
+
 ## Updating
 
 - **The reference app:** `git pull && npm install`.
 - **An app of your own:** `npm run werkbank:update` in the app
-  (`-- 0.7.0` for a specific version). See [docs/upgrading.md](docs/upgrading.md).
+  (`-- 0.7.0` for a specific version). It also refreshes the app's copy of
+  the skill. See [docs/upgrading.md](docs/upgrading.md).
+- **The skill in `~/.claude/skills`:** `npm run skill:install` again after
+  updating the checkout.
 
 ## Uninstalling
 
-Delete the folder. The app keeps workspaces, settings and custom elements in
+Delete the folder, and `~/.claude/skills/werkbank-app` if you installed the
+skill there. The app keeps workspaces, settings and custom elements in
 the browser's storage for its address; clear the site data for
 `localhost:5199` (or `:5200`) to remove them.

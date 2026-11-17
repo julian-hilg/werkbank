@@ -18,6 +18,7 @@
     "bridge": "node packages/bridge/src/server.js --hub",
     "new:tool": "node scripts/new-tool.mjs",
     "new:app": "node scripts/create-app.mjs",
+    "skill:install": "node scripts/install-skill.mjs",
     "promote:element": "node scripts/promote-element.mjs",
     "pack": "node scripts/pack.mjs",
     "check:app": "node scripts/check-app.mjs"

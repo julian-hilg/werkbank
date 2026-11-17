@@ -37,10 +37,23 @@ built something an agent cannot use. Add a command; return the data from
 
 ```
 npm run dev                # the app (http://localhost:5200) and the agent bridge (port 8787)
+npm run dev:status         # what answers on those two ports, and which process holds them
+npm run dev:stop           # stop this app's dev server and bridge
 npm run typecheck
 npm run build
+npm run check:rules        # the rules of this guide that a compiler does not see
 npm run werkbank:update    # move to the newest framework release; see section 14
 ```
+
+**The order of work is backend, then frontend.** The backend of a feature is
+its record schema, its store and its commands (sections 5, 6 and 8): plain
+TypeScript without React, finished when an agent could do the task with no
+panel on screen. The frontend is the panels that show that data and call those
+commands (sections 4, 7 and 9). The package carries this order as a skill for
+coding agents, `skills/werkbank-app/` next to this file: `SKILL.md` is the
+workflow, `backend.md` and `frontend.md` hold the patterns to copy. A
+scaffolded app has a copy in `.claude/skills/werkbank-app/`, where Claude Code
+loads it by itself; `npm run werkbank:update` keeps it at the installed version.
 
 Do not commit unless the person asks.
 
@@ -375,8 +388,8 @@ npm run werkbank:update            # newest release
 npm run werkbank:update -- 0.7.0   # a specific release
 ```
 
-The script rewrites the three `@werkbank/*` dependencies, installs, and
-type-checks the app. Then read `node_modules/@werkbank/framework/CHANGELOG.md`
+The script rewrites the three `@werkbank/*` dependencies, installs, refreshes
+the development skill in `.claude/skills/werkbank-app/`, and type-checks the app. Then read `node_modules/@werkbank/framework/CHANGELOG.md`
 for what changed.
 
 What makes updates safe, and what you must not break:
@@ -399,7 +412,8 @@ What makes updates safe, and what you must not break:
 
 ## 15. Where to look
 
-- This guide and `CHANGELOG.md`, next to it in the package.
+- This guide and `CHANGELOG.md`, next to it in the package, and the
+  development skill in `skills/werkbank-app/`.
 - The type declarations in `node_modules/@werkbank/framework/dist` are the
   exact API; `WerkbankConfig`, `ToolSpec`, `Command` and `SettingSpec` are the
   ones to read.

@@ -40,7 +40,9 @@ npm run werkbank:update -- --local ../werkbank   # link a checkout instead
 ```
 
 The script (`scripts/werkbank.mjs` in the app) rewrites the dependencies,
-installs, and type-checks the app. `npm run check:app` in this repository runs
+installs, refreshes the development skill for coding agents
+(`.claude/skills/werkbank-app/`, the one copied file an app has from the
+framework) and type-checks the app. `npm run check:app` in this repository runs
 that whole path against a freshly packed release on every push.
 
 ## What an update can and cannot change
