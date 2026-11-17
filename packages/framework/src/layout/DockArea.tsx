@@ -177,7 +177,16 @@ export function DockArea({ wb, renderPanel, renderTab, renderToolbar, renderEmpt
           if (popped && tabIds(fromEngine(popped.getModel())).includes(id)) popped.closeTab(id);
         }
       },
-      selectTab: (id) => ws().selectTab(id),
+      selectTab: (id) => {
+        if (tabIds(model()).includes(id)) {
+          ws().selectTab(id);
+          // Its group is now the active one: the next panel opens there.
+          place(id);
+          return;
+        }
+        // The tab lives in a window of its own: bring that window forward.
+        for (const p of popoutsRef.current.popouts) if ([...p.window.document.querySelectorAll("[data-tab-id]")].some((el) => el.getAttribute("data-tab-id") === id)) p.window.focus();
+      },
       moveTab: (id, target) => {
         ws().moveTab(id, target);
         place(id);

@@ -257,6 +257,16 @@ body {
 .wb-list-item:hover {
   background: var(--wb-hover);
 }
+/* A tool that has a panel open: a click goes to it instead of opening another. */
+.wb-list-item[data-open]::after {
+  content: "";
+  flex: none;
+  width: 5px;
+  height: 5px;
+  margin-left: auto;
+  border-radius: 50%;
+  background: var(--wb-accent);
+}
 .wb-glyph {
   width: 16px;
   text-align: center;

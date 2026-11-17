@@ -102,7 +102,12 @@ export function registerBuiltins(wb: Werkbank): void {
     expand: (wb) => Object.keys(wb.getDoc().instances).map((id) => ({ title: `Go to ${wb.titleOf(id)} (${id})`, input: { id } })),
     run: ({ wb }, i) => {
       wb.requireInstance(i.id);
-      wb.getEngine().selectTab(i.id);
+      const engine = wb.getEngine();
+      // A panel hidden behind a maximised group would be selected without being seen.
+      const layout = engine.snapshot().layout;
+      const set = tabsetOf(layout, i.id);
+      if (set && layout.maximizedTabsetId && layout.maximizedTabsetId !== set.id) engine.toggleMaximize(layout.maximizedTabsetId);
+      engine.selectTab(i.id);
       wb.syncLayout();
     },
   });

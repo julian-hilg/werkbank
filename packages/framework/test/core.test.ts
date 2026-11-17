@@ -157,6 +157,18 @@ describe("commands", () => {
     expect(await wb.run("no.such")).toMatchObject({ ok: false, code: "unknown" });
   });
 
+  it("finds the open panel a click on a tool goes to, walking through several", async () => {
+    const wb = new Werkbank(config());
+    expect(wb.openPanelOf("nope")).toBeUndefined();
+    await wb.run("panel.focus", { id: "note-1" });
+    expect(wb.openPanelOf("note")).toBe("note-1"); // the only one, even while it is active
+    await wb.run("panel.open", { toolId: "note" }); // note-2 is now active
+    expect(wb.openPanelOf("note")).toBe("note-1");
+    await wb.run("panel.focus", { id: "note-1" });
+    expect(wb.openPanelOf("note")).toBe("note-2");
+    expect(Object.keys(wb.getDoc().instances).filter((id) => id.startsWith("note-"))).toHaveLength(2);
+  });
+
   it("lists palette entries with expanded inputs", () => {
     const wb = new Werkbank(config());
     const titles = wb.commands.palette(wb).map((e) => e.title);

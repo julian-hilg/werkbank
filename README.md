@@ -218,7 +218,8 @@ Patterns worth copying into a real project:
 ## Using it
 
 - **Open a panel:** click a tool in the side dock, drag it to a place in the
-  layout, or press Ctrl/⌘ K and type.
+  layout, or press Ctrl/⌘ K and type. Clicking a tool that is already open
+  goes to its panel; drag it into the layout to open the same tool a second time.
 - **Rearrange:** drag a tab onto another group to join it, or onto an edge to split.
 - **Link panels:** the dot on a tab is its link group. Panels in the same group
   share context (in the starter: symbol and date range). Click the dot to change group.
@@ -360,9 +361,9 @@ flowchart LR
 ## Verifying
 
 ```bash
-npm test             # 116 unit tests
+npm test             # 117 unit tests
 npm run typecheck
-npm run check        # 271 checks in a real browser; needs `npm run dev` running
+npm run check        # 275 checks in a real browser; needs `npm run dev` running
 npm run check:app    # a packed release installs, builds and updates in a fresh app
 ```
 

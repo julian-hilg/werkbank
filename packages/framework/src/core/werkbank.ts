@@ -324,6 +324,19 @@ export class Werkbank {
     return set?.selectedId ?? set?.tabs[0]?.id;
   }
 
+  /**
+   * The open panel of a tool that a click on the tool should go to, if there is one. With several open,
+   * repeated calls walk through them: the one after the active panel comes next. Docked panels come before
+   * those in windows of their own.
+   */
+  openPanelOf(toolId: string): string | undefined {
+    const { layout, detached } = this.engine.snapshot();
+    const ofTool = (ids: string[]) => ids.filter((id) => this.doc.instances[id]?.toolId === toolId);
+    const open = [...ofTool(tabsets(layout).flatMap((set) => set.tabs.map((tab) => tab.id))), ...ofTool(detached.map((tab) => tab.id))];
+    if (!open.length) return undefined;
+    return open[(open.indexOf(this.activeInstanceId() ?? "") + 1) % open.length];
+  }
+
   // ---- panels -------------------------------------------------------------
 
   titleOf(id: string): string {

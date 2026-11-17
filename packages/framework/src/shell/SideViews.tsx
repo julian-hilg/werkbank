@@ -50,6 +50,12 @@ export function SideDock({ onToolDrag }: { onToolDrag: ToolDrag }) {
 function ToolsView({ onToolDrag }: { onToolDrag: ToolDrag }) {
   const wb = useWerkbank();
   useMeta((meta) => meta.toolsVersion);
+  // Which tools have a panel open: a click goes to it, a drag opens another.
+  const open = new Set(useDoc((doc) => [...new Set(Object.values(doc.instances).map((inst) => inst.toolId))].sort().join("\n")).split("\n"));
+  const show = (toolId: string) => {
+    const id = wb.openPanelOf(toolId);
+    void (id ? wb.run("panel.focus", { id }) : wb.run("panel.open", { toolId }));
+  };
   const [query, setQuery] = useState("");
   const q = query.trim().toLowerCase();
   const groups = new Map<string, typeof tools>();
@@ -71,8 +77,10 @@ function ToolsView({ onToolDrag }: { onToolDrag: ToolDrag }) {
                 <button
                   className="wb-list-item"
                   style={{ touchAction: "none" }}
+                  data-open={open.has(tool.id) || undefined}
+                  title={open.has(tool.id) ? "Open. Click to go to it; drag into the layout to open another." : undefined}
                   onPointerDown={(e) => onToolDrag(e, tool.id, tool.title)}
-                  onClick={() => void wb.run("panel.open", { toolId: tool.id })}
+                  onClick={() => show(tool.id)}
                 >
                   <span className="wb-glyph">{tool.glyph ?? tool.title.slice(0, 1)}</span>
                   {tool.title}
@@ -83,7 +91,7 @@ function ToolsView({ onToolDrag }: { onToolDrag: ToolDrag }) {
         </section>
       ))}
       {tools.length === 0 && <p className="wb-hint">No tool matches.</p>}
-      <p className="wb-hint">Click to open in the active group, or drag to a place in the layout.</p>
+      <p className="wb-hint">Click to open a tool, or to go to it when it is already open. Drag it into the layout to open another one.</p>
     </>
   );
 }

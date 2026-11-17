@@ -222,6 +222,30 @@ await wait(300);
 check("dragging a tool from the side dock opens it where dropped", (await tabs()) === countBefore + 1 && (await tabsetOf("watchlist-2")) === (await tabsetOf("chart-1")));
 check("no placeholder tab is left behind", (await page.locator("[data-tab-id^='new-']").count()) === 0);
 
+// --- clicking a tool that is open goes to it; only a drag opens another ---
+const panelInFront = () => page.evaluate(() => window.werkbank.activeInstanceId());
+const watchlistItem = page.locator(".wb-side .wb-list-item", { hasText: "Watchlist" });
+check("a tool with an open panel is marked in the list", (await watchlistItem.getAttribute("data-open")) !== null);
+await run("panel.focus", { id: "chart-1" });
+await watchlistItem.click();
+await wait(150);
+const firstStop = await panelInFront();
+check("clicking an open tool goes to its panel without opening another", (await tabs()) === countBefore + 1 && /^watchlist-[12]$/.test(firstStop ?? ""), String(firstStop));
+await watchlistItem.click();
+await wait(150);
+const secondStop = await panelInFront();
+check("clicking again walks to the tool's other panel", (await tabs()) === countBefore + 1 && /^watchlist-[12]$/.test(secondStop ?? "") && secondStop !== firstStop, `${firstStop} -> ${secondStop}`);
+const closedTool = await page.evaluate(() => {
+  const open = new Set(Object.values(window.werkbank.getDoc().instances).map((i) => i.toolId));
+  const tool = [...window.werkbank.tools.values()].find((t) => !open.has(t.id));
+  return tool ? { id: tool.id, title: tool.title } : null;
+});
+await page.locator(".wb-side .wb-list-item", { hasText: closedTool.title }).first().click();
+await wait(200);
+check("clicking a tool that is not open opens it", (await tabs()) === countBefore + 2 && (await page.evaluate((id) => Object.values(window.werkbank.getDoc().instances).some((i) => i.toolId === id), closedTool.id)));
+await run("panel.close", { id: await panelInFront() });
+
+
 // --- keyboard navigation, maximise, zen ---
 await page.locator("[data-testid=tab-watchlist-1]").click();
 const active = () => page.evaluate(() => document.activeElement?.closest("[data-tabset]")?.getAttribute("data-tabset-id") ?? null);

@@ -19,6 +19,7 @@ The window is one workspace made of **panels**. Every panel is a tab; tabs sit i
 ## Panels
 
 - **Open a panel:** click it in the *Tools* view (the first button in the left rail), or drag it from there to the place you want it. The command palette opens panels too.
+- **A tool that is already open** has a dot in the *Tools* view. Clicking it takes you to its panel instead of opening a second one. To have the same tool twice, drag it from the list into the layout.
 - **Move a panel:** drag its tab. Drop it on another group's tab bar to join that group, on the middle of a group to do the same, or near an edge to split the group or the whole window.
 - **Resize:** drag the line between two groups.
 - **Maximise a group:** double-click its tab bar, or use the square button at its right end. The same action restores it.
