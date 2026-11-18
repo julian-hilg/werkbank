@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+Fixed
+- An app installed from the release tarballs could not start its dev server: Vite's dependency pre-bundler failed on the chart libraries' `?raw` imports. New apps exclude `@werkbank/chart-libraries` from pre-bundling; an existing app adds `optimizeDeps: { exclude: ["@werkbank/chart-libraries"] }` to its `vite.config.ts`.
+- The published packages no longer declare a `prepare` script, which referred to sources a tarball does not carry and made npm 11 warn on every install.
+
 ## 0.6.1
 
 The first version published as a release.

@@ -27,7 +27,7 @@ Node.js 22 or newer. The repository is an npm workspace:
 | `npm test` | Unit tests (vitest): the core, the module boundaries, the reference app's domain logic |
 | `npm run typecheck` | All three TypeScript projects |
 | `npm run check` | End-to-end checks in a real browser: the app, then the bridge through real MCP clients. Needs `npm run dev` running |
-| `npm run check:app` | Packs a release, scaffolds an app from it in a temporary folder, installs, type-checks, builds and updates it |
+| `npm run check:app` | Packs a release, scaffolds an app from it in a temporary folder, installs, type-checks, builds it, starts its dev server and updates it |
 | `npm run build` | Framework, then the reference app |
 | `npm run build:framework` | Framework only. Run it after changing the framework: apps outside this repository use the built output |
 | `npm run pack` | Writes the three package tarballs to `release/` |

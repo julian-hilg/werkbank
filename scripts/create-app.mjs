@@ -86,6 +86,9 @@ export default defineConfig({
   // While the framework is linked from a folder (rather than installed from a registry or a git tag),
   // make sure the app and the framework share one copy of React.
   resolve: { dedupe: ["react", "react-dom"] },
+  // The chart libraries are loaded as raw text (?raw) for sandboxed elements; Vite's dependency
+  // pre-bundler cannot load such imports from an installed package, and the dev server stops.
+  optimizeDeps: { exclude: ["@werkbank/chart-libraries"] },
   server: {
     port: 5200,
     // The app reaches the agent bridge through its own address.
