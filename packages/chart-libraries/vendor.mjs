@@ -1,7 +1,8 @@
-// Copies each library's browser build into ./vendor, where index.js loads it as text.
+// Copies each library's browser build into ./vendor, where index.js loads it as text,
+// and its licence text and notices into ./vendor/licenses: they must travel with the copies.
 // The libraries' own package "exports" do not all expose these files, so they are
 // located on disk rather than imported. Runs on install (the "prepare" script).
-import { copyFileSync, existsSync, mkdirSync } from "node:fs";
+import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -31,4 +32,8 @@ for (const [id, [name, ...paths]] of Object.entries(FILES)) {
     continue;
   }
   copyFileSync(file, join(here, "vendor", `${id}.js`));
+  // LICENSE, NOTICE and, where a library has one, its folder of licences for code it includes.
+  const notices = readdirSync(root).filter((entry) => /^(licen[sc]e|notice|copying)/i.test(entry));
+  if (!notices.some((entry) => statSync(join(root, entry)).isFile())) throw new Error(`[chart-libraries] ${name} has no licence file to carry along.`);
+  for (const entry of notices) cpSync(join(root, entry), join(here, "vendor", "licenses", id, entry), { recursive: true });
 }

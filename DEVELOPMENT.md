@@ -115,10 +115,18 @@ All three packages share one version.
 2. Move the changelog's entries under the new version.
 3. Run `npm test`, `npm run typecheck`, `npm run check` (with `npm run dev`
    running) and `npm run check:app`.
-4. Commit, then tag and push: `git tag v0.6.0 && git push --follow-tags`.
+4. Commit, then tag and push: `git tag v0.6.1 && git push --follow-tags`.
 
 The `Release` workflow builds the tarballs and attaches them to a GitHub
-release. Apps reach it with `npm run werkbank:update`.
+release. A published version is never rebuilt or replaced: apps record the
+checksum of the file they installed, so a fix is a new version. Do not rewrite
+history at or before a tag.
+
+Every tarball carries the MIT `LICENSE`. The chart-libraries tarball also
+carries the licence texts and notices of the libraries it redistributes
+(`vendor/licenses/`, written by `vendor.mjs`) and `THIRD-PARTY-NOTICES.md`;
+update that file when a library is added. `npm run check:app` fails if any of
+this is missing from a tarball. Apps reach it with `npm run werkbank:update`.
 
 ## Conventions
 

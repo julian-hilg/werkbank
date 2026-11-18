@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.6.1
+
+The first version published as a release.
+
+Added
+- A skill for coding agents that build apps, `skills/werkbank-app/` in the package: the order of work (backend, then frontend), patterns for stores, commands and panels, a rule check and a script for the dev processes. Scaffolded apps get it in `.claude/skills/`, with `npm run check:rules`, `dev:status` and `dev:stop`, and an `.mcp.json` for the app's bridge; `werkbank:update` refreshes it.
+- Licences in the packages: each carries the MIT `LICENSE`; `@werkbank/chart-libraries` also carries the licence texts and notices of the libraries it redistributes (`vendor/licenses/`) and lists them in `THIRD-PARTY-NOTICES.md`.
+
+Changed
+- Clicking a tool in the Tools view goes to its panel when one is open (a dot marks such tools; with several open, repeated clicks walk through them) instead of opening another. Dragging a tool into the layout still opens a new panel, and `panel.open` is unchanged for commands, the palette and agents.
+- `panel.focus` makes the panel's group the active one, restores the layout when another group is maximised, and brings a panel's own window forward. New: `Werkbank.openPanelOf(toolId)`.
+
+Known limitations
+- The Codex adapter for the in-app assistant was written from Codex's documented output format; only its start-up and error handling have been run. Claude Code is the tested agent.
+
 ## 0.6.0
 
 First public version, under the name Werkbank.
@@ -14,11 +29,6 @@ Added
 - Documentation in the settings window: the framework's pages, preceded by the app's own (`docs` in the config). Commands `docs.open` and `docs.list`; `settings.open` takes a `section`.
 - `GUIDE.md` in the package: the guide for coding agents building an app.
 - Releases as package tarballs, and `npm run werkbank:update` in scaffolded apps.
-- A skill for coding agents that build apps, `skills/werkbank-app/` in the package: the order of work (backend, then frontend), patterns for stores, commands and panels, a rule check and a script for the dev processes. Scaffolded apps get it in `.claude/skills/`, with `npm run check:rules`, `dev:status` and `dev:stop`, and an `.mcp.json` for the app's bridge; `werkbank:update` refreshes it.
-
-Changed
-- Clicking a tool in the Tools view goes to its panel when one is open (a dot marks such tools; with several open, repeated clicks walk through them) instead of opening another. Dragging a tool into the layout still opens a new panel, and `panel.open` is unchanged for commands, the palette and agents.
-- `panel.focus` makes the panel's group the active one, restores the layout when another group is maximised, and brings a panel's own window forward. New: `Werkbank.openPanelOf(toolId)`.
 
 ## 0.5.0
 

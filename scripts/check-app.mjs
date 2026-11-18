@@ -10,6 +10,13 @@ import { fileURLToPath } from "node:url";
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const run = (command, cwd) => execSync(command, { cwd, stdio: "inherit" });
 run("node scripts/pack.mjs", repo);
+// Every tarball carries its licence; the chart libraries' one also carries the texts of what it redistributes.
+const version = JSON.parse(readFileSync(join(repo, "packages/framework/package.json"), "utf8")).version;
+const listing = (pkg) => execSync(`tar -tzf "${join(repo, "release", `werkbank-${pkg}-${version}.tgz`)}"`, { encoding: "utf8" }).split("\n");
+for (const pkg of ["framework", "bridge", "chart-libraries"]) if (!listing(pkg).includes("package/LICENSE")) throw new Error(`The ${pkg} tarball has no LICENSE.`);
+const charts = listing("chart-libraries");
+for (const file of ["THIRD-PARTY-NOTICES.md", "vendor/licenses/echarts/LICENSE", "vendor/licenses/echarts/NOTICE", "vendor/licenses/d3/LICENSE", "vendor/licenses/chartjs/LICENSE.md", "vendor/licenses/lightweight-charts/LICENSE", "vendor/licenses/plotly/LICENSE"])
+  if (!charts.includes(`package/${file}`)) throw new Error(`The chart-libraries tarball is missing ${file}.`);
 const dir = mkdtempSync(join(tmpdir(), "werkbank-app-"));
 const app = join(dir, "sample-app");
 try {

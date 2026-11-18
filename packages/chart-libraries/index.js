@@ -8,6 +8,9 @@
  * nothing is downloaded until an element that uses it is opened.
  *
  * Needs a bundler that supports `?raw` imports (Vite does).
+ *
+ * The libraries are other people's work under their own licences; see
+ * THIRD-PARTY-NOTICES.md and vendor/licenses in this package.
  */
 const text = (module) => module.default;
 
@@ -33,7 +36,7 @@ export const chartLibraries = {
   "lightweight-charts": {
     title: "Lightweight Charts 5",
     global: "LightweightCharts",
-    description: "Fast financial time-series charts: candlesticks, bars, lines, areas, histograms, with a time scale and crosshair.",
+    description: "Fast financial time-series charts: candlesticks, bars, lines, areas, histograms, with a time scale and crosshair. Leave its attribution logo on (layout.attributionLogo, on by default): the licence asks for that link to TradingView.",
     load: () => import("./vendor/lightweight-charts.js?raw").then(text),
   },
   plotly: {

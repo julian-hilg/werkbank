@@ -305,6 +305,14 @@ if (popup) {
     return JSON.stringify(doc.layout).includes("chart-1") && Boolean(doc.instances["chart-1"]);
   });
   check("the saved workspace still contains the popped-out panel", stored);
+  if (!(await page.locator(".wb-side .wb-list-item").count())) await page.locator(".wb-rail-button[aria-label='Tools']").click();
+  const beforeClick = Object.keys(await page.evaluate(() => window.werkbank.getDoc().instances)).length;
+  await page.locator(".wb-side .wb-list-item", { hasText: /^\S*\s*Chart$/ }).click();
+  await wait(200);
+  check(
+    "clicking a tool whose panel is in its own window opens no second one",
+    Object.keys(await page.evaluate(() => window.werkbank.getDoc().instances)).length === beforeClick && (await popup.locator("[data-testid=panel-chart-1]").count()) === 1,
+  );
   await popup.screenshot({ path: "scripts/shots/popout.png" });
   await popup.close();
   await wait(400);

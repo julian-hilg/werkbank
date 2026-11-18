@@ -144,7 +144,7 @@ export interface AssistantInfo {
 }
 
 /** Version of the framework. Sub-apps can show it; migrations key off it. */
-export const FRAMEWORK_VERSION = "0.6.0";
+export const FRAMEWORK_VERSION = "0.6.1";
 
 const FRAMEWORK_SETTINGS: SettingSpec<any>[] = [
   {

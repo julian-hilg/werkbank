@@ -363,13 +363,13 @@ flowchart LR
 ```bash
 npm test             # 117 unit tests
 npm run typecheck
-npm run check        # 275 checks in a real browser; needs `npm run dev` running
+npm run check        # 276 checks in a real browser; needs `npm run dev` running
 npm run check:app    # a packed release installs, builds and updates in a fresh app
 ```
 
 ## Credits
 
-Country outlines come from [Natural Earth](https://www.naturalearthdata.com/) (public domain) through the `world-atlas` package. The layout engine is [`react-resizable-panels`](https://github.com/bvaughn/react-resizable-panels); markdown rendering is `react-markdown`. The chart libraries offered to custom elements are Apache ECharts, D3, Chart.js, TradingView Lightweight Charts and Plotly, each under its own licence.
+Country outlines come from [Natural Earth](https://www.naturalearthdata.com/) (public domain) through the `world-atlas` package. The layout engine is [`react-resizable-panels`](https://github.com/bvaughn/react-resizable-panels); markdown rendering is `react-markdown`. The chart libraries offered to custom elements are Apache ECharts, D3, Chart.js, TradingView Lightweight Charts and Plotly, each under its own licence; the texts ship in the package and are listed in [`THIRD-PARTY-NOTICES.md`](packages/chart-libraries/THIRD-PARTY-NOTICES.md).
 
 ## Licence
 

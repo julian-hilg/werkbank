@@ -85,6 +85,15 @@ Open the **Crafter** panel.
    earns a permanent place, it can later be rewritten as a native tool with
    tests; the element is the specification.
 
+## Licences of the chart libraries
+
+The libraries in `@werkbank/chart-libraries` are other people's work, each
+under its own licence (Apache-2.0, ISC or MIT). The package carries their
+licence texts in `vendor/licenses/` and lists them in
+`THIRD-PARTY-NOTICES.md`; keep both with any copy you pass on. Lightweight
+Charts additionally asks for a visible link to TradingView: it draws one on
+the chart by default (`layout.attributionLogo`), and elements must leave it on.
+
 ## Private data and backends
 
 Elements have no backend of their own, by design: a personal backend is

@@ -36,7 +36,7 @@
     "vite": "^8.0.0",
     "vitest": "^5.1.0"
   },
-  "version": "0.6.0",
+  "version": "0.6.1",
   "license": "MIT",
   "author": "Julian Hilg",
   "homepage": "https://github.com/julian-hilg/werkbank#readme",
