@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.2
 
 Fixed
 - An app installed from the release tarballs could not start its dev server: Vite's dependency pre-bundler failed on the chart libraries' `?raw` imports. New apps exclude `@werkbank/chart-libraries` from pre-bundling; an existing app adds `optimizeDeps: { exclude: ["@werkbank/chart-libraries"] }` to its `vite.config.ts`.

@@ -115,7 +115,7 @@ All three packages share one version.
 2. Move the changelog's entries under the new version.
 3. Run `npm test`, `npm run typecheck`, `npm run check` (with `npm run dev`
    running) and `npm run check:app`.
-4. Commit, then tag and push: `git tag v0.6.1 && git push --follow-tags`.
+4. Commit, then tag and push: `git tag v0.6.2 && git push --follow-tags`.
 
 The `Release` workflow builds the tarballs and attaches them to a GitHub
 release. A published version is never rebuilt or replaced: apps record the

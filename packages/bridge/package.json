@@ -1,6 +1,6 @@
 {
   "name": "@werkbank/bridge",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "type": "module",
   "bin": {
     "werkbank-bridge": "./src/server.js"

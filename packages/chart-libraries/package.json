@@ -1,6 +1,6 @@
 {
   "name": "@werkbank/chart-libraries",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "type": "module",
   "description": "Popular charting libraries, packed so sandboxed custom elements can load them without network access.",
   "exports": {
