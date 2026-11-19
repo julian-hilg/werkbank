@@ -4,6 +4,9 @@
 
 Changes on `main` since the last release. This heading becomes the version number when a release is tagged.
 
+Fixed
+- A page that started in a browser without any of the app's data could load itself again later, when the bridge reconnected or a storage setting changed and the app's folder had newer data by then. It now does so only at its first look at the folder; afterwards it shows the notice to reload.
+
 ## 0.7.0
 
 Changed, and needs attention in an existing app

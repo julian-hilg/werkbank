@@ -250,11 +250,13 @@ export class AgentLink {
     else wb.conversations.detach();
     if (!(usable && wb.settings.get<boolean>("storage.onDisk"))) return wb.files.detach();
     const replaced = await wb.files.attach(file("data"));
+    // Only the first look at the folder may start the page again; later the person is at work in it.
+    const first = !this.restored;
+    this.restored = true;
     if (!replaced.length) return;
     // The app's folder held newer workspaces or settings than this browser. The running app has not read them.
-    if (wb.files.startedEmpty && !this.restored) {
+    if (wb.files.startedEmpty && first) {
       // A browser that knew nothing of the app (new, or its data was cleared): start again with what was kept, before the person has done anything.
-      this.restored = true;
       try {
         if (sessionStorage.getItem("werkbank.restored") !== wb.config.appId) {
           sessionStorage.setItem("werkbank.restored", wb.config.appId);
