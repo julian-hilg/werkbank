@@ -15,7 +15,7 @@
     "check": "node scripts/check.mjs && node scripts/check-bridge.mjs",
     "perf": "node scripts/perf.mjs",
     "typecheck": "tsc -p packages/framework && tsc -p starter && tsc -p packages/bridge",
-    "bridge": "node packages/bridge/src/server.js --hub",
+    "bridge": "node packages/bridge/src/server.js --hub --home starter",
     "new:tool": "node scripts/new-tool.mjs",
     "new:app": "node scripts/create-app.mjs",
     "skill:install": "node scripts/install-skill.mjs",
@@ -36,7 +36,7 @@
     "vite": "^8.0.0",
     "vitest": "^5.1.0"
   },
-  "version": "0.6.2",
+  "version": "0.7.0",
   "license": "MIT",
   "author": "Julian Hilg",
   "homepage": "https://github.com/julian-hilg/werkbank#readme",

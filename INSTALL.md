@@ -21,7 +21,7 @@ npm run dev
 ```
 
 Open http://localhost:5199. `npm run dev` starts two things: the app, and the
-agent bridge on `127.0.0.1:8787` that lets the in-app assistant and your own
+agent bridge on `127.0.0.1:8199` that lets the in-app assistant and your own
 coding agent operate it. Everything in the reference app is simulated.
 
 ## Start an app of your own
@@ -80,10 +80,47 @@ Assistant panel, and gives the one-line command that registers the app with
 your own agent, for example:
 
 ```bash
-claude mcp add --transport http werkbank-starter http://127.0.0.1:8787/mcp
+claude mcp add --transport http werkbank-starter http://127.0.0.1:8199/mcp
 ```
 
 The model an agent uses is set in that agent's own configuration, not in the app.
+
+## Secrets and conversations
+
+An app keeps two things in its own folder rather than in the browser.
+
+**Secrets.** Copy `.env.example` to `.env`, make it yours alone, and add two lines per secret:
+
+```bash
+cp .env.example .env && chmod 600 .env
+```
+
+```
+WERKBANK_SECRET_WEATHER=the-key
+WERKBANK_SECRET_WEATHER_HOSTS=api.weather.example
+```
+
+The app uses a secret by name; its value stays with the bridge, is sent only to
+the hosts listed, and never reaches the browser or an agent. The bridge uses no
+secret from a file that other users can read or that git could commit, and the
+*Assistant setup* window (section *On this machine*) says what is wrong if so.
+An edit to `.env` takes effect without a restart.
+
+**Conversations** with the assistant are kept in the browser and in
+`.werkbank/conversations.json` in the app's folder; workspaces, settings and
+custom elements likewise in `.werkbank/app-data.json`. They survive clearing
+the browser's data and are there in another browser. Switch the files off
+under Settings → Assistant and Settings → Storage. Both `.env` and
+`.werkbank/` are in a new app's `.gitignore`; do not commit either.
+
+Both need the app's Vite config to use `bridgeProxy()` from
+`@werkbank/bridge/vite`, which new apps do.
+
+Every app has an agent bridge of its own, on a port of its own
+(`werkbank.bridgePort` in its `package.json`; a new app gets its own port plus
+3000). To run several apps at once, give each a different port:
+`npm run new:app -- <folder> "Title" --port 5300`. A bridge that finds another
+app's bridge on its port stops and says so.
 
 ## Install with a coding agent
 
@@ -91,7 +128,7 @@ Paste one of these into your coding agent.
 
 **To try the reference app:**
 
-> Please clone `https://github.com/julian-hilg/werkbank.git`, run `npm install` in it, and start it with `npm run dev`. It needs Node.js 22 or newer; if that is missing, install it first. Check that http://localhost:5199 answers and that `curl http://127.0.0.1:8787/health` returns JSON naming `werkbank-bridge`. Then tell me the address to open, and how to connect you to the running app (the app's *Assistant setup* window gives the command).
+> Please clone `https://github.com/julian-hilg/werkbank.git`, run `npm install` in it, and start it with `npm run dev`. It needs Node.js 22 or newer; if that is missing, install it first. Check that http://localhost:5199 answers and that `curl http://127.0.0.1:8199/health` returns JSON naming `werkbank-bridge`. Then tell me the address to open, and how to connect you to the running app (the app's *Assistant setup* window gives the command).
 
 **To start an app of my own on Werkbank:**
 

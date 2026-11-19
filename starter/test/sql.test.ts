@@ -91,7 +91,7 @@ describe("connections", () => {
       if (service === "mcp.tools") return { ok: true, value: { server: "Other 1.0", tools: [{ name: "lookup", title: null, description: "Looks something up.", readOnly: true, inputSchema: {} }] } };
       return { ok: true, value: { isError: false, text: "42", structured: null } };
     };
-    const api = store.save(null, { kind: "rest", name: "Prices API", baseUrl: "https://api.example.com/", auth: "bearer", headerName: "", testPath: "/health", scope: "private" });
+    const api = store.save(null, { kind: "rest", name: "Prices API", baseUrl: "https://api.example.com/", auth: "bearer", headerName: "", secret: "", testPath: "/health", scope: "private" });
     expect((await store.test(api.id)).message).toMatch(/Enter the token/);
     store.save(api.id, store.get(api.id)!, "wrong");
     expect((await store.test(api.id)).message).toMatch(/401: the credentials were not accepted/);
@@ -101,7 +101,7 @@ describe("connections", () => {
     expect((await store.apiGet(api.id, "/v1/prices?symbol=X")).body).toEqual({ up: true });
     await expect(store.apiGet(api.id, "no-slash")).rejects.toThrow(/must start with/);
 
-    const mcp = store.save(null, { kind: "mcp", name: "Other server", url: "https://other.example/mcp", auth: "none", scope: "shared" });
+    const mcp = store.save(null, { kind: "mcp", name: "Other server", url: "https://other.example/mcp", auth: "none", secret: "", scope: "shared" });
     await expect(store.mcpCall(mcp.id, "lookup", {})).rejects.toThrow(/has not been tested/);
     expect(await store.test(mcp.id)).toMatchObject({ status: "ok", message: "Other 1.0, 1 tool" });
     expect(store.toolsOf(mcp.id).map((t) => t.name)).toEqual(["lookup"]);
@@ -109,6 +109,14 @@ describe("connections", () => {
     await expect(store.mcpCall(mcp.id, "nope", {})).rejects.toThrow(/no tool called "nope"/);
     expect(() => store.query(api.id, "SELECT 1", 10)).toThrow(/is a HTTP API connection, not a SQL Server one/);
     expect(written.join("")).not.toContain("s3cret");
+
+    // A connection that names a secret from the app's .env file: the page sends the name, never a key, and needs none typed in.
+    const named = store.save(null, { kind: "rest", name: "Keyed API", baseUrl: "https://api.example.com", auth: "header", headerName: "X-API-Key", secret: "PRICES", testPath: "/health", scope: "private" });
+    await store.test(named.id);
+    expect(calls.at(-1)).toEqual({ service: "http.get", params: { url: "https://api.example.com/health", auth: { secret: "PRICES", as: "header", header: "X-API-Key" } } });
+    const namedMcp = store.save(null, { kind: "mcp", name: "Keyed server", url: "https://other.example/mcp", auth: "bearer", secret: "OTHER", scope: "private" });
+    await store.test(namedMcp.id);
+    expect(calls.at(-1)).toEqual({ service: "mcp.tools", params: { url: "https://other.example/mcp", secret: "OTHER" } });
     expect(() => store.save(null, { kind: "rest", name: "Bad", baseUrl: "ftp://x", auth: "header", headerName: "", testPath: "x", scope: "private" } as never)).toThrow();
   });
 

@@ -18,7 +18,15 @@ const project = resolve(folder);
 const appRoot = [project, join(project, "starter")].find((dir) => existsSync(join(dir, "src", "app.ts"))) ?? project;
 const config = ["ts", "js", "mjs"].map((ext) => join(appRoot, `vite.config.${ext}`)).find(existsSync);
 const appPort = Number((config && /\bport:\s*(\d+)/.exec(readFileSync(config, "utf8"))?.[1]) ?? 5173);
-const bridgePort = Number(process.env.BRIDGE_PORT ?? 8787);
+// Each app has a bridge of its own; its port is in the app's package.json.
+const configured = (() => {
+  try {
+    return JSON.parse(readFileSync(join(appRoot, "package.json"), "utf8")).werkbank?.bridgePort;
+  } catch {
+    return undefined;
+  }
+})();
+const bridgePort = Number(process.env.BRIDGE_PORT ?? configured ?? 8787);
 
 const get = async (url) => {
   try {
@@ -60,12 +68,12 @@ async function status() {
   console.log(
     `backend   127.0.0.1:${bridgePort}  ${isBridge ? `bridge ${bridge.version} answering, ${bridge.apps.length ? `connected to: ${bridge.apps.join(", ")}` : "no app tab connected yet"}` : health ? "something else is using this port" : "not running"}${bridgeHolders.length ? `  [${describe(bridgeHolders)}]` : ""}`,
   );
-  // One bridge serves every Werkbank app on the machine: whoever started first holds the port, and that is fine.
-  const sharedBridge = isBridge && bridgeHolders.some((h) => !h.ours);
-  if (sharedBridge) console.log("The bridge was started by another Werkbank app and is shared; this app uses it too.");
-  if (appHolders.some((h) => !h.ours)) console.log(`Port ${appPort} is held by another project. Stop it there, or run: node ${process.argv[1]} stop --force`);
-  else if (health && !isBridge) console.log(`Port ${bridgePort} is used by something that is not the bridge. Free it, or set BRIDGE_PORT.`);
-  else if (!page) console.log('Start the app with "npm run dev" in its folder, as a background task.');
+  const foreign = [...appHolders, ...bridgeHolders].filter((h) => !h.ours);
+  if (foreign.length) {
+    console.log(`A port this app needs is held by another project. Stop it there (or: node ${process.argv[1]} stop --force), or give this app its own ports: the dev server's in vite.config, the bridge's as "werkbank": { "bridgePort": <number> } in package.json.`);
+  } else if (health && !isBridge) console.log(`Port ${bridgePort} is used by something that is not the bridge. Free it, or set "werkbank": { "bridgePort": <number> } in package.json.`);
+  else if (!page && !isBridge) console.log('Start both with "npm run dev" in the app, as a background task.');
+  else if (!page) console.log('The bridge runs without the app. Stop it and start both with "npm run dev".');
   else if (!isBridge) console.log('The app runs without its bridge, so no agent can reach it. Stop it and start both with "npm run dev".');
   else if (!bridge.apps.length) console.log("Open the app in a browser so the bridge has a tab to act on.");
   return page && isBridge ? 0 : 1;
@@ -78,7 +86,7 @@ async function stop() {
   }
   const all = [...holders(appPort), ...holders(bridgePort)];
   const targets = all.filter((h) => h.ours || force);
-  for (const h of all.filter((x) => !targets.includes(x))) console.log(`Left running: pid ${h.pid} from ${h.cwd || "an unknown folder"} belongs to another project (a bridge is shared between apps). Use --force to stop it too.`);
+  for (const h of all.filter((x) => !targets.includes(x))) console.log(`Left running: pid ${h.pid} from ${h.cwd || "an unknown folder"} belongs to another project. Use --force to stop it too.`);
   if (!targets.length && !all.length) console.log("Nothing is running on either port.");
   for (const h of targets) {
     try {

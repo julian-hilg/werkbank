@@ -1,3 +1,5 @@
+import { ConversationStore } from "./conversations";
+import { MirroredStore } from "./mirrored-store";
 import {
   CommandRegistry,
   needsApproval,
@@ -71,6 +73,12 @@ export interface ToolSpec<S> {
    * rather than to one layout, such as a conversation.
    */
   keepAcrossWorkspaces?: boolean;
+  /**
+   * Keep a panel of this tool in a tab group of its own: no other panel can be stacked on it, and it
+   * cannot be stacked on another. It can still be moved, split beside others, maximised and popped out.
+   * For panels that should always be in view, such as a monitor or a ticket.
+   */
+  ownGroup?: boolean;
   /** Set on tools that are custom elements: the element's id. The panel host renders these in a sandbox. */
   element?: string;
   /** True for an element the person made themselves (as opposed to one shipped with the app). */
@@ -118,6 +126,8 @@ export interface WerkbankConfig {
     serverName?: string;
     /** A paragraph about this app for the agent: what it is for, what to be careful with. */
     brief?: string;
+    /** Requests offered as buttons in an empty conversation, in the words a person would type. Replaces the framework's own. */
+    suggestions?: string[];
   };
   /** Custom elements: what people may build for themselves inside the app. */
   custom?: {
@@ -141,12 +151,30 @@ export interface AssistantInfo {
   mcp: { url: string; port: number; stdio: { command: string; args: string[] } };
   agents: { id: string; label: string; available: boolean }[];
   defaultAgent: string;
+  /** Whether the bridge was told which folder this app lives in, so it can keep files and use secrets there. Absent from bridges before 0.7. */
+  home?: boolean;
+  /** True when this page reached the bridge of another app: the two were given the same port. */
+  foreign?: boolean;
+}
+
+/** What the app may know about its own folder on this machine. Secrets are known by name only; their values never reach the app. */
+export interface HomeInfo {
+  available: boolean;
+  /** Whether the bridge keeps the app's files (the assistant's conversations) in `.werkbank/` there. */
+  store: boolean;
+  secrets: { name: string; hosts: string[] }[];
+  /** What is wrong with the `.env` file or single secrets, in sentences a person can act on. */
+  problems: string[];
 }
 
 /** Version of the framework. Sub-apps can show it; migrations key off it. */
-export const FRAMEWORK_VERSION = "0.6.2";
+export const FRAMEWORK_VERSION = "0.7.0";
 
 const FRAMEWORK_SETTINGS: SettingSpec<any>[] = [
+  {
+    key: "assistant.conversationsOnDisk", title: "Keep conversations in the app's folder", section: "Assistant", schema: z.boolean(), default: true,
+    description: "Also keeps the assistant's conversations in a file in the app's folder on this machine (.werkbank/), so they survive clearing the browser's data. Switching it off leaves the file as it is.",
+  },
   {
     key: "assistant.connect", title: "Connect to the agent bridge", section: "Assistant", schema: z.boolean(), default: true,
     description: "Lets the in-app assistant and external agents read and drive this app through the local bridge.",
@@ -154,6 +182,10 @@ const FRAMEWORK_SETTINGS: SettingSpec<any>[] = [
   {
     key: "assistant.agent", title: "Agent for the in-app assistant", section: "Assistant", schema: z.string().max(40), default: "",
     description: "Which installed coding agent answers in the Assistant panel. Empty uses the bridge's default.",
+  },
+  {
+    key: "storage.onDisk", title: "Keep workspaces, settings and custom elements in the app's folder", section: "Storage", schema: z.boolean(), default: true,
+    description: "Also keeps them in a file in the app's folder on this machine (.werkbank/), so they survive clearing the browser's data and are there in another browser. Switching it off leaves the file as it is.",
   },
 ];
 
@@ -184,6 +216,8 @@ export interface Meta {
   pendingApproval: { commandId: string; title: string; input: unknown } | null;
   /** What the bridge said about itself and the agents installed, once connected. */
   assistant: AssistantInfo | null;
+  /** The app's folder on this machine as the bridge sees it, once connected; null without a bridge or with one that knows no folder. */
+  home: HomeInfo | null;
   /** Which app-level dialog is open, if any. */
   dialog: "settings" | "assistant" | null;
   /** Where the settings window opens: a section, and for Documentation a page. */
@@ -201,6 +235,10 @@ export class Werkbank {
   readonly themes: string[];
   readonly settings: SettingsStore;
   readonly custom: CustomElementStore;
+  /** The assistant's conversations. They outlive panels and workspaces. */
+  readonly conversations: ConversationStore;
+  /** The app's storage (workspaces, settings, custom elements), which can also be kept in the app's folder. */
+  readonly files: MirroredStore;
 
   private doc: WorkspaceDoc;
   private meta: Meta;
@@ -218,13 +256,16 @@ export class Werkbank {
       this.tools.set(tool.id, tool);
     }
     this.themes = config.themes ?? ["xp", "dark", "light"];
-    const store = config.storage ?? memoryStore();
+    const appKey = `${config.appId}.conversations`;
+    // Everything the app stores goes through here, so it can be kept in the app's folder as well. Conversations have their own way.
+    const store = (this.files = new MirroredStore(config.storage ?? memoryStore(), config.appId, (key) => key === appKey));
     this.storage = new WorkspaceStorage(store, config.appId);
     const brand: SettingSpec<any>[] = config.logo
       ? [{ key: "appearance.logo", title: "Show the logo", section: "Appearance", schema: z.boolean(), default: true, description: `Shows the ${config.title} logo at the top of the rail.` }]
       : [];
     this.settings = new SettingsStore([...brand, ...FRAMEWORK_SETTINGS, ...(config.settings ?? [])], store, config.appId);
     this.custom = new CustomElementStore(store, config.appId);
+    this.conversations = new ConversationStore(store, config.appId);
     // Custom elements are tools too, so panels showing them survive a reload like any other.
     const topics = Object.keys(config.topics ?? {});
     for (const element of config.custom?.elements ?? []) this.tools.set(`e-${element.id}`, elementTool(element, false, topics));
@@ -235,9 +276,9 @@ export class Werkbank {
     config.commands?.forEach((c) => this.commands.register(c));
 
     const loaded = this.loadInitial();
-    this.doc = loaded.doc;
+    this.doc = this.adoptConversations(loaded.doc);
     for (const id in this.doc.instances) this.issued.add(id);
-    this.meta = { log: [], notes: loaded.notes, source: loaded.source, saved: true, bridge: "off", pendingApproval: null, assistant: null, dialog: null, dialogSection: null, toolsVersion: 0 };
+    this.meta = { log: [], notes: loaded.notes, source: loaded.source, saved: true, bridge: "off", pendingApproval: null, assistant: null, home: null, dialog: null, dialogSection: null, toolsVersion: 0 };
     this.engine = new MemoryEngine(this.doc.layout);
   }
 
@@ -335,6 +376,11 @@ export class Werkbank {
     const open = [...ofTool(tabsets(layout).flatMap((set) => set.tabs.map((tab) => tab.id))), ...ofTool(detached.map((tab) => tab.id))];
     if (!open.length) return undefined;
     return open[(open.indexOf(this.activeInstanceId() ?? "") + 1) % open.length];
+  }
+
+  /** Whether a panel keeps a tab group to itself (see `ownGroup` on its tool). */
+  keepsOwnGroup(id: string): boolean {
+    return this.tools.get(this.doc.instances[id]?.toolId ?? "")?.ownGroup === true;
   }
 
   // ---- panels -------------------------------------------------------------
@@ -571,6 +617,24 @@ export class Werkbank {
 
   // ---- whole-document operations ------------------------------------------
 
+  /**
+   * Before the conversation store existed, an Assistant panel held its conversations in its own state, so
+   * workspaces saved or exported then still contain them. Move them into the store and out of the document.
+   */
+  private adoptConversations(doc: WorkspaceDoc): WorkspaceDoc {
+    const instances = { ...doc.instances };
+    let moved = false;
+    for (const [id, inst] of Object.entries(instances)) {
+      const state = inst.state as { conversations?: unknown } | null;
+      if (inst.toolId !== "chat" || !state || !Array.isArray(state.conversations)) continue;
+      this.conversations.adopt(state.conversations);
+      const { conversations: _moved, ...rest } = state;
+      instances[id] = { ...inst, state: rest };
+      moved = true;
+    }
+    return moved ? { ...doc, instances } : doc;
+  }
+
   /** Carry session state (see `keepAcrossWorkspaces`) from the current workspace into the one replacing it. */
   private carryOver(next: WorkspaceDoc): WorkspaceDoc {
     const kept = new Map<string, unknown>();
@@ -600,7 +664,7 @@ export class Werkbank {
     const result = normaliseDoc(raw, this.tools, this.config.appId);
     if (!result) throw new Error("This is not a valid workspace document.");
     // Theme, density and the side dock are the user's settings, not the workspace's.
-    this.apply(this.carryOver({ ...result.doc, shell: this.doc.shell }));
+    this.apply(this.carryOver(this.adoptConversations({ ...result.doc, shell: this.doc.shell })));
     return result.notes;
   }
 

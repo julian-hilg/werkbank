@@ -1,6 +1,8 @@
-// Start a new app on Werkbank: npm run new:app -- <folder> ["App title"] [--from local|release|<folder of .tgz files>]
+// Start a new app on Werkbank: npm run new:app -- <folder> ["App title"] [--port 5200] [--from local|release|<folder of .tgz files>]
 // It writes a small, runnable app that depends on the framework's packages.
 // The app owns its tools, commands, settings and workspaces; the framework is a dependency it can update.
+//   --port <n>      the address the app is served at (default 5200). Its agent bridge gets <n> + 3000.
+//                   Apps that run at the same time need different ports; each has a bridge of its own.
 //   --from local    (default) link the packages from this checkout: for working on app and framework together
 //   --from release  depend on the published release of this version on GitHub: for a real project
 //   --from <dir>    depend on package tarballs in a folder (what `npm run pack` writes)
@@ -12,11 +14,15 @@ import { fileURLToPath } from "node:url";
 const args = process.argv.slice(2);
 const fromAt = args.indexOf("--from");
 const from = fromAt >= 0 ? args.splice(fromAt, 2)[1] : "local";
+const portAt = args.indexOf("--port");
+const port = portAt >= 0 ? Number(args.splice(portAt, 2)[1]) : 5200;
 const [folder, titleArg] = args;
-if (!folder || !from) {
-  console.error('Usage: npm run new:app -- <folder> ["App title"] [--from local|release|<folder of .tgz files>]');
+if (!folder || !from || !Number.isInteger(port) || port < 1024 || port > 62000) {
+  console.error('Usage: npm run new:app -- <folder> ["App title"] [--port 5200] [--from local|release|<folder of .tgz files>]');
   process.exit(1);
 }
+// Every app has an agent bridge of its own, on a port of its own.
+const bridgePort = port + 3000;
 const target = resolve(folder);
 if (existsSync(target) && readdirSync(target).length > 0) {
   console.error(`${target} exists and is not empty.`);
@@ -65,7 +71,8 @@ const files = {
         "dev:status": "node .claude/skills/werkbank-app/scripts/dev.mjs status",
         "dev:stop": "node .claude/skills/werkbank-app/scripts/dev.mjs stop",
       },
-      werkbank: { repo: REPO_SLUG },
+      // bridgePort: where this app's own agent bridge listens. The bridge and the dev server both read it here.
+      werkbank: { repo: REPO_SLUG, bridgePort },
       // The framework is a dependency. To update it, point these at a newer version and read its CHANGELOG.
       dependencies: { "@werkbank/framework": link("framework"), "@werkbank/bridge": link("bridge"), "@werkbank/chart-libraries": link("chart-libraries"), react: "^19.2.0", "react-dom": "^19.2.0", zod: "^4.6.7" },
       devDependencies: { "@types/react": "^19.0.0", "@types/react-dom": "^19.0.0", "@vitejs/plugin-react": "^6.3.0", typescript: "^5.9.0", vite: "^8.0.0" },
@@ -79,6 +86,7 @@ const files = {
     2,
   ),
   "vite.config.ts": `import react from "@vitejs/plugin-react";
+import { bridgeProxy } from "@werkbank/bridge/vite";
 import { defineConfig } from "vite";
 
 export default defineConfig({
@@ -90,9 +98,12 @@ export default defineConfig({
   // pre-bundler cannot load such imports from an installed package, and the dev server stops.
   optimizeDeps: { exclude: ["@werkbank/chart-libraries"] },
   server: {
-    port: 5200,
-    // The app reaches the agent bridge through its own address.
-    proxy: { "/__bridge": { target: "ws://127.0.0.1:8787", ws: true, rewriteWsOrigin: false } },
+    port: ${port},
+    // Fail rather than move to another port: the browser keeps the app's data per address.
+    strictPort: true,
+    // The app reaches the agent bridge through its own address. The proxy also tells the bridge which folder
+    // this app lives in: its conversations are kept there (.werkbank/) and its secrets are read from there (.env).
+    proxy: bridgeProxy(),
   },
 });
 `,
@@ -239,7 +250,7 @@ panels come second and only show data and call commands.
 
 ## Commands
 
-- \`npm run dev\`: the app at http://localhost:5200 and the agent bridge on port 8787
+- \`npm run dev\`: the app at http://localhost:${port} and its own agent bridge on port ${bridgePort} (\`werkbank.bridgePort\` in package.json)
 - \`npm run typecheck\`, \`npm run build\`
 - \`npm run werkbank:update\`: move to the newest framework release (\`-- <version>\` for a specific one)
 - \`npm run check:rules\`: the rules a compiler does not see (literal colours, native dropdowns, panels without \`describe\` …)
@@ -253,6 +264,7 @@ panels come second and only show data and call commands.
 - \`.mcp.json\`: registers the running app's bridge with your coding agent, so you can read and drive the app
 - \`.claude/skills/werkbank-app/\`: the development skill; \`npm run werkbank:update\` refreshes it
 - \`public/\`: static files, including the logo
+- \`.env\`: secrets (see \`.env.example\`); never committed, readable by you alone. \`.werkbank/\`: what the app keeps on this machine
 
 ## Rules
 
@@ -262,12 +274,24 @@ panels come second and only show data and call commands.
   never from a path inside those packages.
 - Colours come from the \`--wb-*\` theme tokens; no literal colours in components.
 - Dropdowns and search fields are the framework's \`Select\`, \`MultiSelect\` and \`SearchBox\`, never native ones.
+- Secrets live in \`.env\` as \`WERKBANK_SECRET_<NAME>\` with \`WERKBANK_SECRET_<NAME>_HOSTS\`, and are used by name:
+  \`bridgeService(wb, "http.get", { url, auth: { secret: "<NAME>" } })\`. Never put a key in \`src/\`, in a setting, in panel
+  state or in browser storage, and never read or print \`.env\`.
 - Do not commit unless asked.
 `,
   "scripts/werkbank.mjs": readFileSync(join(repo, "scripts", "app-update.mjs"), "utf8"),
   // Lets a coding agent started in this folder read and drive the running app (the same tools the in-app assistant has).
   ".mcp.json": JSON.stringify({ mcpServers: { [id]: { command: "npx", args: ["werkbank-bridge"] } } }, null, 2) + "\n",
-  ".gitignore": "node_modules\ndist\n",
+  // Secrets and what the app keeps on this machine never go into the repository. The bridge refuses a .env that git could commit.
+  ".gitignore": "node_modules\ndist\n.env\n.env.*\n!.env.example\n.werkbank\n",
+  ".env.example": `# Secrets this app may use to reach APIs and other MCP servers. Copy to .env, then: chmod 600 .env
+#
+# A secret is two lines: its value, and the hosts it may be sent to. Without hosts it is never sent.
+# The app refers to it by name (here: EXAMPLE); the value stays with the agent bridge and never reaches the browser.
+#
+# WERKBANK_SECRET_EXAMPLE=replace-with-the-key
+# WERKBANK_SECRET_EXAMPLE_HOSTS=api.example.com
+`,
 };
 
 for (const [path, text] of Object.entries(files)) {
@@ -281,7 +305,7 @@ console.log(`Created "${title}" in ${target}
 Next:
   cd ${relative(process.cwd(), target) || "."}
   npm install
-  npm run dev        # http://localhost:5200
+  npm run dev        # http://localhost:${port}, with its agent bridge on port ${bridgePort}
 
 The framework comes from ${from === "local" ? `this checkout (${repo})` : from === "release" ? `release v${VERSION} on GitHub` : resolve(from)}.
 "npm run werkbank:update" in the app moves it to another version; docs/upgrading.md explains what an update can change.

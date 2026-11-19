@@ -36,7 +36,7 @@ built something an agent cannot use. Add a command; return the data from
 ## 2. Commands for working on an app
 
 ```
-npm run dev                # the app (http://localhost:5200) and the agent bridge (port 8787)
+npm run dev                # the app (http://localhost:5200) and its own agent bridge (port 8200)
 npm run dev:status         # what answers on those two ports, and which process holds them
 npm run dev:stop           # stop this app's dev server and bridge
 npm run typecheck
@@ -151,6 +151,9 @@ Rules for tools:
   helps. Keep it bounded (cap long lists and say so). Never return secrets.
 - **Layout.** The component fills its panel (`height: 100%`). Start with a
   `.wb-toolhead` bar for the title and controls.
+- **A group of its own.** `ownGroup: true` on a tool keeps its panel in a tab
+  group to itself: nothing can be stacked on it, by a drag, a command or an
+  agent. Use it sparingly, for a panel that must always be in view.
 - **Heavy views.** If a view pulls in a large library or data file, keep the
   tool definition in one file and the component in another loaded with
   `React.lazy`.
@@ -219,7 +222,7 @@ Choose `risk` honestly; it decides what an agent may do unasked:
   `{ ok: false, error, code }`. It never calls the store directly for anything a
   command exists for.
 
-Built-in commands cover panels (`panel.open`, `panel.close`, `panel.move`,
+Built-in commands cover panels (`panel.open`, `panel.show`, `panel.close`, `panel.move`,
 `panel.setState`, `panel.link`, `panel.popout` …), `link.publish`, views and
 themes (`view.*`), workspaces (`workspace.*`), `history.undo`, `settings.set`,
 `settings.open`, `docs.open`, `docs.list`, `assistant.setup` and custom elements
@@ -325,6 +328,18 @@ in the browser and can be exported and imported as a file.
   app through six MCP tools: `werkbank_describe`, `werkbank_commands`,
   `werkbank_run`, `werkbank_batch`, `werkbank_element_guide`,
   `werkbank_save_element`.
+- Conversations are kept in the app's conversation store (`wb.conversations`),
+  in the app's storage under `<appId>.conversations` and, when the bridge knows
+  the app's folder, in `.werkbank/conversations.json` there. They do not belong to a
+  panel or a workspace, so they survive both, and a workspace file never
+  contains them. The commands `conversation.list`, `conversation.rename`,
+  `conversation.delete`, `conversation.deleteAll` and `conversation.import`
+  come with `chatTool`. The panel also lets a person attach a panel's data to
+  a message, undo what the assistant changed while writing a reply, and export
+  conversations.
+- `assistant.suggestions` in the config are the requests an empty
+  conversation offers as buttons. Write three that fit the app, in the words
+  a person would type.
 - `assistant.brief` in the config is what an agent is told about this app.
   Write it: what the app is for, which data is real, what needs care.
 - You do not write MCP code. Commands and `describe` are the whole integration.
@@ -332,6 +347,30 @@ in the browser and can be exported and imported as a file.
   `werkbank_describe` and `werkbank_run`?
 - To let an app reach an HTTP API or another MCP server that a browser page
   cannot, call `bridgeService(wb, "http.get" | "mcp.tools" | "mcp.call", params)`.
+  For a request that changes something there, use `"http.request"` with
+  `{ url, method, json }` (or `body` for text; POST, PUT, PATCH or DELETE)
+  from a command with `risk: "external"`, so it waits for the person's
+  approval when an agent runs it.
+- **Secrets never go into the app.** A key or token is two lines in the app's
+  `.env` file, `WERKBANK_SECRET_<NAME>=…` and `WERKBANK_SECRET_<NAME>_HOSTS=api.example.com`,
+  and is used by name: `bridgeService(wb, "http.get", { url, auth: { secret: "<NAME>" } })`
+  (`auth: { secret, as: "header", header: "x-api-key" }` for another header;
+  `{ url, secret }` for the MCP services). The bridge attaches the value, only
+  to the listed hosts and only over https or to this machine, does not follow a
+  redirect with it, and removes it from the answer. The value never reaches the
+  page, an agent or a log. `.env` must be readable by its owner alone
+  (`chmod 600 .env`) and ignored by git, or no secret is used.
+  `useMeta((m) => m.home)` gives the names and any problem; the Assistant setup
+  window shows the same. Do not put credentials in source, settings, panel
+  state, browser storage or `VITE_` variables.
+- **The app's folder.** `proxy: bridgeProxy()` from `@werkbank/bridge/vite` in
+  the Vite config forwards the page's connection to the bridge and tells it
+  which folder the app lives in. That is what gives the app the two things
+  above: secrets from `.env`, and `.werkbank/` for the conversations and for
+  a second copy of what the app stores (workspaces, settings, custom elements).
+- **One bridge per app.** The bridge's port is `werkbank.bridgePort` in the
+  app's `package.json`; the bridge and `bridgeProxy()` both read it. Apps that
+  run at the same time need different ports.
 
 ## 11. Documentation inside the app
 

@@ -16,3 +16,23 @@ jobs:
       - run: npm run build
       # A packed release must install, type-check, build and update in a fresh app.
       - run: npm run check:app
+
+  # The end-to-end checks in a real browser, against the running reference app.
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Start the reference app and its bridge
+        run: |
+          npm run dev > dev.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf http://localhost:5199/ > /dev/null && curl -sf http://127.0.0.1:8199/health > /dev/null && exit 0; sleep 1; done
+          cat dev.log; exit 1
+      - run: npm run check
+      - if: failure()
+        run: cat dev.log

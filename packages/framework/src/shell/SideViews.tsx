@@ -52,10 +52,7 @@ function ToolsView({ onToolDrag }: { onToolDrag: ToolDrag }) {
   useMeta((meta) => meta.toolsVersion);
   // Which tools have a panel open: a click goes to it, a drag opens another.
   const open = new Set(useDoc((doc) => [...new Set(Object.values(doc.instances).map((inst) => inst.toolId))].sort().join("\n")).split("\n"));
-  const show = (toolId: string) => {
-    const id = wb.openPanelOf(toolId);
-    void (id ? wb.run("panel.focus", { id }) : wb.run("panel.open", { toolId }));
-  };
+  const show = (toolId: string) => void wb.run("panel.show", { toolId });
   const [query, setQuery] = useState("");
   const q = query.trim().toLowerCase();
   const groups = new Map<string, typeof tools>();

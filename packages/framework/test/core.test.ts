@@ -400,7 +400,7 @@ describe("settings", () => {
   it("apps add their own, with defaults, validation and sections", async () => {
     const wb = new Werkbank(config(memoryStore(), { settings: specs }));
     expect(wb.settings.get("size")).toBe(3);
-    expect(wb.settings.sections()).toEqual(["Assistant", "Look"]);
+    expect(wb.settings.sections()).toEqual(["Assistant", "Storage", "Look"]);
     expect(await wb.run("settings.set", { key: "size", value: 5 })).toMatchObject({ ok: true });
     expect(await wb.run("settings.set", { key: "size", value: 50 })).toMatchObject({ ok: false });
     expect(await wb.run("settings.set", { key: "nope", value: 1 })).toMatchObject({ ok: false });

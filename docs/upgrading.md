@@ -45,6 +45,19 @@ installs, refreshes the development skill for coding agents
 framework) and type-checks the app. `npm run check:app` in this repository runs
 that whole path against a freshly packed release on every push.
 
+## Changes an app makes by hand
+
+A few improvements need a line in the app's own files, which an update never
+touches. The changelog lists them under "To adopt in an existing app". The ones
+so far, both from 0.7.0:
+
+- The files in the app's folder and secrets from `.env` need
+  `proxy: bridgeProxy()` from `@werkbank/bridge/vite` in `vite.config.ts` in
+  place of a hand-written `/__bridge` entry, and `.env`, `.env.*` and
+  `.werkbank` in `.gitignore`. `npm run check:rules` points it out.
+- Apps no longer share an agent bridge. If several run at once, each needs a
+  port of its own: `"werkbank": { "bridgePort": 8200 }` in its `package.json`.
+
 ## What an update can and cannot change
 
 The framework is versioned (`FRAMEWORK_VERSION`, and each package's

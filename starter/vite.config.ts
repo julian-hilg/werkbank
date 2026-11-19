@@ -1,7 +1,6 @@
 import react from "@vitejs/plugin-react";
+import { bridgeProxy } from "@werkbank/bridge/vite";
 import { defineConfig } from "vite";
-
-const BRIDGE = `ws://127.0.0.1:${process.env.BRIDGE_PORT ?? 8787}`;
 
 export default defineConfig({
   plugins: [react()],
@@ -10,8 +9,9 @@ export default defineConfig({
   server: {
     port: 5199,
     strictPort: true,
-    // The app reaches the agent bridge through its own address, so the browser
-    // sees one origin and has nothing to block.
-    proxy: { "/__bridge": { target: BRIDGE, ws: true, rewriteWsOrigin: false } },
+    // The app reaches the agent bridge through its own address, so the browser sees one origin and has
+    // nothing to block. The proxy also tells the bridge which folder this app lives in: that is where
+    // its conversations are kept (.werkbank/) and where its secrets are read from (.env).
+    proxy: bridgeProxy(),
   },
 });

@@ -219,7 +219,7 @@ export const werkbank = new Werkbank({
     chatTool, crafterTool,
   ],
   commands: [...commands, ...taskCommands, ...pipelineCommands],
-  version: "0.6.2",
+  version: "0.7.0",
   settings: appSettings,
   assistant: {
     serverName: "werkbank-starter",

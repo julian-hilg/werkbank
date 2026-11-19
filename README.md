@@ -22,7 +22,7 @@ Every action is a command, every panel can describe its data, and any coding age
 - **Dockable panels.** Every panel is a tab you can drag, split, stack, maximise or move to its own window. A workspace is data: saved, restored, exported, and shipped as presets.
 - **Built for agents from the start.** Every action is a typed command and every panel returns the data behind its pixels. An agent connected over MCP reads the app and drives it; so does the Assistant panel inside it.
 - **Agent-agnostic.** Use Claude Code, Codex or any MCP client. A setup window gives the one-line command and a briefing written for the app. The model is the agent's business, not the app's.
-- **Safe by construction.** Agent actions are logged with who did them and can be undone. Anything external or irreversible waits for the person's approval.
+- **Safe by construction.** Agent actions are logged with who did them and can be undone. Anything external or irreversible waits for the person's approval. Secrets stay in a `.env` file with the bridge and never reach the browser or an agent.
 - **Build your own panels inside the app.** Describe a panel and an agent builds it. It runs in a sandbox with no network access, can use ECharts, D3, Chart.js, Lightweight Charts and Plotly, and has a reviewed route into the shared app.
 - **A framework, not a template.** An app depends on Werkbank as a package and owns only its panels, commands, settings and workspaces. `npm run werkbank:update` brings in a new framework version.
 - **Its own controls and themes.** Dropdowns, searchable selects and search fields with previews look the same in every browser. A theme is one block of tokens; three ship.
@@ -46,7 +46,7 @@ flowchart LR
     Sandbox -. "read-only API" .-> Core
   end
 
-  Bridge["werkbank-bridge<br/>local process, 127.0.0.1:8787"]
+  Bridge["werkbank-bridge<br/>local process, 127.0.0.1:8199"]
   Core <-- "WebSocket" --> Bridge
 
   subgraph Agents["Coding agents"]
@@ -247,11 +247,12 @@ to the bridge, which starts a coding agent for that turn: whichever installed
 agent you chose in the setup window (Claude Code and Codex have adapters). The
 agent reads the app and acts on it through MCP; the panel shows what it is
 doing, the commands it ran, and its reply as it is written. Conversations are
-kept in a list you can reopen. The agent is started with no file, shell or web
+kept by the app in this browser, not by the panel: they survive closing the
+panel, switching workspace and a reload, and can be searched, renamed, exported and deleted. A panel's data can be attached to a message, and what the assistant changed while writing a reply can be undone with one click. The agent is started with no file, shell or web
 access: the app's commands are the only thing it can use.
 
 **From your own coding agent.** The bridge serves MCP at
-`http://127.0.0.1:8787/mcp`, so any agent can connect from a terminal session
+`http://127.0.0.1:8199/mcp`, so any agent can connect from a terminal session
 in a folder of your choice. The setup window shows the exact command for your
 agent (`claude mcp add --transport http …`, `codex mcp add … --url …`, or a
 JSON snippet for other clients) and a briefing to paste as your first message.
@@ -319,6 +320,33 @@ To add another agent to the in-app assistant, write an adapter in
 appears in the setup window when its program is installed. The assistant uses
 your own agent login and counts against your usage.
 
+## What is kept where, and secrets
+
+A Werkbank app runs in a browser, but some things should not live only there, and secrets not at all. They are kept in the app's own folder and handled by the bridge. Every app has a bridge of its own, on its own port, so one app never sees another's folder.
+
+| | Where | Notes |
+| --- | --- | --- |
+| Workspaces, settings, custom elements | The browser, and `.werkbank/app-data.json` in the app's folder | The newer value wins. Export and import as files. A setting switches the file off |
+| The assistant's conversations | The browser, and `.werkbank/conversations.json` in the app's folder | Survive clearing the browser's data, another browser and a change of address. Export and import as files. A setting switches the file off |
+| Secrets (API keys, tokens) | `.env` in the app's folder, only | Never in the browser, the source, a setting or a log |
+
+A secret is two lines, its value and the hosts it may be sent to:
+
+```
+WERKBANK_SECRET_WEATHER=the-key
+WERKBANK_SECRET_WEATHER_HOSTS=api.weather.example
+```
+
+The app refers to it by name, `bridgeService(wb, "http.get", { url, auth: { secret: "WEATHER" } })`, and the bridge does the rest:
+
+- **The value never leaves the bridge** except inside the request it is for. The page, the in-app assistant and any connected agent see names only; agents the bridge starts do not inherit it.
+- **Only to its hosts.** A secret without a host list is never sent. Other hosts are refused, plain `http` is refused unless the host is this machine, and a redirect is not followed.
+- **Removed from the answer.** If a server repeats the credential back, the bridge strips it before the app sees the reply.
+- **The file is checked.** It must be a regular file that only you can read (`chmod 600 .env`) and that git ignores; otherwise no secret is used and the setup window says why.
+- **Only the app's own page gets its folder.** The app's dev server names the folder when it forwards the page's connection; a page cannot do that itself, and the bridge accepts it only from a page that this same server delivered. Nothing a page sends is used as a path.
+
+What this does not protect against: other programs running as you on this computer can read the files directly, as they can read anything of yours. The bridge listens on `127.0.0.1` only.
+
 ## Settings, menus and custom elements
 
 - **Settings** (⚙ in the rail, or Ctrl/⌘ ,) is a window, not a panel: settings
@@ -361,9 +389,9 @@ flowchart LR
 ## Verifying
 
 ```bash
-npm test             # 117 unit tests
+npm test             # 163 unit tests
 npm run typecheck
-npm run check        # 276 checks in a real browser; needs `npm run dev` running
+npm run check        # 308 checks in a real browser; needs `npm run dev` running
 npm run check:app    # a packed release installs, builds and updates in a fresh app
 ```
 

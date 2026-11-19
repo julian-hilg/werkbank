@@ -19,8 +19,9 @@ The window is one workspace made of **panels**. Every panel is a tab; tabs sit i
 ## Panels
 
 - **Open a panel:** click it in the *Tools* view (the first button in the left rail), or drag it from there to the place you want it. The command palette opens panels too.
-- **A tool that is already open** has a dot in the *Tools* view. Clicking it takes you to its panel instead of opening a second one. To have the same tool twice, drag it from the list into the layout.
+- **A tool that is already open** has a dot in the *Tools* view. Clicking it takes you to its panel instead of opening a second one, and the tab lights up for a moment. "Open …" in the command palette does the same. To have the same tool twice, drag it from the list into the layout, or choose "Open another …" in the palette.
 - **Move a panel:** drag its tab. Drop it on another group's tab bar to join that group, on the middle of a group to do the same, or near an edge to split the group or the whole window.
+- **Some panels keep a group to themselves**, where the app decided they should always be in view. Nothing can be stacked on them; a panel dropped there lands beside them.
 - **Resize:** drag the line between two groups.
 - **Maximise a group:** double-click its tab bar, or use the square button at its right end. The same action restores it.
 - **Own window:** the arrow button in a tab bar moves the active panel into a separate browser window. Closing that window puts the panel back.
@@ -37,7 +38,7 @@ Press **Ctrl/Cmd + K**. Everything the app can do is a command: opening panels, 
 
 ## Workspaces
 
-The arrangement of panels, their state and the link groups are a **workspace**. It is saved in this browser as you work. In the *Workspaces* view you can save a workspace under a name, load one, start from a preset, and export or import one as a file to share it.
+The arrangement of panels, their state and the link groups are a **workspace**. It is saved as you work, in this browser and, when the app runs with its agent bridge, in the app's own folder on this machine. In the *Workspaces* view you can save a workspace under a name, load one, start from a preset, and export or import one as a file to share it.
 
 ## History and undo
 
@@ -57,8 +58,11 @@ A Werkbank app can be read and operated by AI agents as well as by you. An agent
 Open the **Assistant** panel and type a request, for example "put the chart next to the order book" or "what changed in my positions today?". The message goes to a coding agent installed on this computer (Claude Code, Codex, or another the app has an adapter for), which acts on this window.
 
 - **Setup** in the panel's header chooses the agent and shows whether the local bridge is running. The model an agent uses is set in that agent's own configuration.
-- **Chats** lists your conversations. Double-click one to rename it; right-click for more.
-- Tool calls appear in the conversation as they happen.
+- **Chats** lists your conversations. Double-click one to rename it; right-click for more. With more than a few, a search field finds one by its title or by anything said in it.
+- **Conversations are kept by the app, not by the panel.** They stay when you close the Assistant panel, switch or reset the workspace, or reload the page, and every Assistant panel and every tab of the app shows the same list. They are stored in this browser and, when the app runs with its agent bridge, in a file in the app's own folder on this machine (.werkbank/), so they are still there after the browser's data is cleared. *Assistant setup* shows where they are kept and has the switch for it. A workspace you export does not contain them. Deleting or renaming one can be undone from the action history.
+- Tool calls appear in the conversation as they happen. When a reply changed something in the app, **Undo this change** under it takes that back.
+- **Attach a panel** (beside the message field) sends a panel's data along with your message, so the agent does not have to look for it.
+- The menu above the conversation list exports all conversations to a file, imports such a file, and deletes all of them.
 
 ## Your own agent, in a terminal
 
@@ -127,7 +131,7 @@ Built with **Werkbank** ${FRAMEWORK_VERSION}, a framework for dockable workspace
 
 Werkbank is open source (MIT), written by Julian Hilg: [github.com/julian-hilg/werkbank](https://github.com/julian-hilg/werkbank).
 
-Workspaces, settings and custom elements are stored in this browser. Nothing is sent anywhere unless a panel or an agent you use does so.
+Workspaces, settings and custom elements are stored in this browser and, when the app runs with its agent bridge, in a file in the app's own folder on this machine (.werkbank/); *Settings → Storage* has the switch for the file. Nothing is sent anywhere unless a panel or an agent you use does so.
 `;
 
 /** The pages of the settings window's Documentation section, in order. */

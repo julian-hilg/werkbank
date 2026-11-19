@@ -53,13 +53,34 @@ export function registerBuiltins(wb: Werkbank): void {
       link: z.enum(LINK_GROUPS).nullable().optional(),
       target: dropTarget.optional(),
     }),
-    expand: (wb) => [...wb.tools.values()].map((t) => ({ title: `Open ${t.title}`, input: { toolId: t.id } })),
+    // In the palette, "Open X" goes to X when it is open (see panel.show); this offers a second one of what is open.
+    expand: (wb) => {
+      const open = new Set(Object.values(wb.getDoc().instances).map((inst) => inst.toolId));
+      return [...wb.tools.values()].filter((t) => open.has(t.id)).map((t) => ({ title: `Open another ${t.title}`, input: { toolId: t.id } }));
+    },
     run: ({ wb }, i) =>
       wb.open(i.toolId, {
         ...(i.state !== undefined ? { state: i.state } : {}),
         ...(i.link !== undefined ? { link: i.link } : {}),
         ...(i.target ? { target: i.target } : {}),
       }),
+  });
+
+  c.register({
+    id: "panel.show",
+    title: "Go to panel, or open it",
+    category: "Panel",
+    risk: "local",
+    // Going to a panel changes nothing worth undoing; opening one is recorded as "panel.open".
+    log: false,
+    input: z.object({ toolId: z.string().describe("The tool. Its open panel is brought forward; with several open, the next one. If none is open, one is opened.") }),
+    expand: (wb) => [...wb.tools.values()].map((t) => ({ title: `Open ${t.title}`, input: { toolId: t.id } })),
+    run: async ({ wb, actor }, i) => {
+      const id = wb.openPanelOf(i.toolId);
+      const result = await (id ? wb.run("panel.focus", { id }, actor) : wb.run("panel.open", { toolId: i.toolId }, actor));
+      if (!result.ok) throw new Error(result.error);
+      return id ?? result.value;
+    },
   });
 
   c.register({

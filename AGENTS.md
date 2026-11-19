@@ -14,7 +14,7 @@ together: the shell and core (`packages/framework`), an agent bridge
 
 ## Commands
 
-- `npm run dev`: starter at http://localhost:5199 plus the agent bridge on port 8787
+- `npm run dev`: starter at http://localhost:5199 plus its own agent bridge on port 8199
   (`npm run dev:app` for the app alone, `npm run bridge` for the bridge alone)
 - `npm test`: unit tests for the core and the module boundaries
 - `npm run check`: end-to-end checks in a real browser (needs `npm run dev` running)

@@ -125,8 +125,12 @@ await wait(200);
 const minuteView = await chartView();
 check("the chart switches to one-minute bars", (await chartState()).timeframe === "1m" && /\d\d:\d\d$/.test(minuteView.to) && minuteView.barsAvailable > 1900, `${minuteView.barsAvailable} bars, latest ${minuteView.to}`);
 const liveBefore = (await page.evaluate(() => window.werkbank.describe().panels.find((p) => p.id === "chart-1").data.lastBars.at(-1)));
-await wait(2500);
-const liveAfter = (await page.evaluate(() => window.werkbank.describe().panels.find((p) => p.id === "chart-1").data.lastBars.at(-1)));
+// The simulated feed pauses for a few seconds now and then, so wait for the bar to move rather than for a fixed time.
+let liveAfter = liveBefore;
+for (let i = 0; i < 30 && liveAfter.volume === liveBefore.volume && liveAfter.time === liveBefore.time; i++) {
+  await wait(500);
+  liveAfter = await page.evaluate(() => window.werkbank.describe().panels.find((p) => p.id === "chart-1").data.lastBars.at(-1));
+}
 check("the current minute bar is built from the live feed", liveAfter.volume > liveBefore.volume || liveAfter.time !== liveBefore.time);
 await page.locator("[data-testid=panel-chart-1] button", { hasText: /^All$/ }).click();
 check("All shows every bar available", (await chartView()).barsShown === (await chartView()).barsAvailable);
@@ -172,8 +176,8 @@ await page.screenshot({ path: "scripts/shots/trading.png" });
 await page.locator("[data-testid=panel-pnl-1] button", { hasText: "1Y daily" }).click();
 
 // --- palette and themes ---
-await palette("open notes");
-check("palette opens a panel", (await tabs()) === 12);
+await palette("open another notes");
+check("palette opens another panel of an open tool", (await tabs()) === 12);
 await palette("theme dark");
 check("palette switches theme", (await page.getAttribute("html", "data-theme")) === "dark");
 await wait(300);
@@ -435,6 +439,40 @@ await page.waitForSelector("[data-testid=panel-vol-surface-1] canvas");
 await wait(600);
 let h = await health();
 check("the Analytics preset renders nine panels without a failure or a blank chart", (await tabs()) === 9 && h.broken === 0 && h.blank === 0, JSON.stringify(h));
+
+// --- a panel that keeps a tab group to itself (the market monitor), the tab that lights up, "Open" in the palette ---
+const monitorGroup = await tabsetOf("monitor-1");
+await run("panel.move", { id: "chart-1", target: { tabsetId: monitorGroup, region: "center" } });
+await wait(200);
+check("a panel moved onto one that keeps its own group lands beside it, not on it", (await tabsetOf("chart-1")) !== (await tabsetOf("monitor-1")) && (await tabs()) === 9);
+await run("panel.move", { id: "monitor-1", target: { tabsetId: await tabsetOf("returns-1"), region: "center" } });
+await wait(200);
+check("such a panel cannot be stacked on another either", (await tabsetOf("monitor-1")) !== (await tabsetOf("returns-1")));
+const besideMonitor = await run("panel.open", { toolId: "notes", target: { tabsetId: await tabsetOf("monitor-1"), region: "center" } });
+await wait(200);
+check("a panel besideMonitor into its group opens beside it", besideMonitor.ok && (await tabsetOf(besideMonitor.value)) !== (await tabsetOf("monitor-1")));
+await run("panel.close", { id: besideMonitor.value });
+const draggedTab = await page.locator("[data-testid=tab-returns-1]").boundingBox();
+const ontoMonitor = await page.locator("[data-testid=panel-monitor-1]").boundingBox();
+await page.mouse.move(draggedTab.x + 20, draggedTab.y + 10);
+await page.mouse.down();
+await page.mouse.move(draggedTab.x + 60, draggedTab.y + 40, { steps: 5 });
+await page.mouse.move(ontoMonitor.x + ontoMonitor.width / 2, ontoMonitor.y + ontoMonitor.height / 2, { steps: 15 });
+await page.mouse.up();
+await wait(250);
+check("dragging a tab onto the middle of it does not stack them", (await tabsetOf("returns-1")) !== (await tabsetOf("monitor-1")) && (await tabs()) === 9);
+await run("panel.focus", { id: "scatter-1" });
+await run("panel.focus", { id: "monitor-1" });
+const litTab = await page.waitForSelector("[data-testid=tab-monitor-1][data-arrived], [data-tab-id=monitor-1][data-arrived]", { timeout: 1000 }).then(() => true, () => false);
+check("the tab a person is taken to lights up for a moment", litTab);
+await run("panel.focus", { id: "scatter-1" });
+await palette("open market monitor");
+check("\"Open\" in the palette goes to the panel that is open instead of opening another", (await tabs()) === 9 && (await page.evaluate(() => window.werkbank.activeInstanceId())) === "monitor-1");
+await palette("open another market monitor");
+check("\"Open another\" in the palette opens a second one", (await tabs()) === 10);
+await run("workspace.preset", { name: "Analytics" });
+await page.waitForSelector("[data-testid=panel-vol-surface-1] canvas");
+await wait(600);
 
 const surface = await panel("vol-surface-1").locator("canvas").boundingBox();
 await page.mouse.move(surface.x + surface.width * 0.5, surface.y + surface.height * 0.5);

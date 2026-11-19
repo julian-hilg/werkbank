@@ -1,5 +1,43 @@
 # Changelog
 
+## Unreleased
+
+Changes on `main` since the last release. This heading becomes the version number when a release is tagged.
+
+## 0.7.0
+
+Changed, and needs attention in an existing app
+- Every app has an agent bridge of its own: one process, one port, one folder. A bridge that finds another app's bridge on its port stops and says which port to set, instead of joining it; apps no longer share one. The port is `BRIDGE_PORT`, or `"werkbank": { "bridgePort": … }` in the app's `package.json`, or 8787. The bridge and `bridgeProxy()` read the same value. New apps get the app's port plus 3000 (`npm run new:app -- <folder> "Title" --port 5300` gives the bridge 8300); the starter uses 8199. An app that is the only one running needs no change. See "To adopt in an existing app" below.
+- In the palette, "Open X" goes to X's panel when one is open, as the Tools view does (the new command `panel.show`); "Open another X" is offered for tools that are open. `panel.open` itself is unchanged for commands and agents.
+
+Added
+- Workspaces, settings and custom elements on disk: with the app's folder known to the bridge, what the app stores under its own name is also kept in `.werkbank/app-data.json` there (`wb.files`, a `MirroredStore`). The newer value wins key by key, and a browser that holds nothing of the app starts from the file. The setting *Keep workspaces, settings and custom elements in the app's folder* switches it off.
+- Bridge service `http.request`: one request with a method (GET, POST, PUT, PATCH, DELETE) and a body, with the same rules for secrets as `http.get`. A command that uses it changes something elsewhere, so give it `risk: "external"`; it then waits for the person's approval when an agent runs it.
+- `ownGroup` on a tool: its panel keeps a tab group to itself. No other panel can be stacked on it and it cannot be stacked on another, by a drag, a command or an agent; such a move lands beside the group instead. It can still be moved, split, maximised and popped out. `Werkbank.keepsOwnGroup(id)`.
+- The Assistant panel: *Undo this change* under a reply takes back what the assistant changed while writing it; an empty conversation offers requests as buttons (`assistant.suggestions` in the config replaces the framework's own); *Attach a panel* sends a panel's data along with a message; the conversation list exports all conversations to a file, imports such a file, exports one as Markdown, and deletes all. Commands `conversation.deleteAll` and `conversation.import`; both can be undone.
+- The tab a person is taken to lights up for a moment (`panel.focus`, a click on an open tool, "Open X" in the palette).
+- The starter's HTTP API and MCP connections can name a secret from `.env` instead of asking for a token each session.
+- A conversation store, `wb.conversations` (`ConversationStore`): the assistant's conversations are kept by the app under `<appId>.conversations` instead of in the Assistant panel's state. They survive the panel being closed, a workspace being replaced or reset and a reload; every Assistant panel and every tab of the app shows the same list; writes from several tabs are merged; a workspace file no longer contains them. Conversations held by a panel saved with an earlier version move into the store when that workspace is loaded or imported (the chat tool's state is version 4).
+- Commands `conversation.list`, `conversation.rename` and `conversation.delete`; renaming and deleting can be undone.
+- Conversations on disk: when the bridge knows the app's folder, the conversation store also keeps them in `.werkbank/conversations.json` there (private to the user, ignored by git), so they survive the browser's data being cleared, another browser and a change of address. The setting *Keep conversations in the app's folder* switches it off.
+- Secrets from `.env`: `WERKBANK_SECRET_<NAME>` with `WERKBANK_SECRET_<NAME>_HOSTS` in the app's `.env` file. The app names a secret (`auth: { secret }` for `http.get`, `secret` for `mcp.tools` and `mcp.call`); the bridge attaches the value, only to the listed hosts, only over https (or to this machine), never along a redirect, and removes it from the answer. Values never reach the browser, an agent or a log. A file that others can read, that is a link, or that git could commit is not used. `Meta.home` (`HomeInfo`) gives the names.
+- `@werkbank/bridge/vite`: `bridgeProxy()` for an app's Vite config. It forwards the page's connection and tells the bridge which folder the app lives in; without it an app has neither the file store nor secrets. Bridge services `home.info`, `store.read`, `store.write`.
+- The Assistant setup window: a section *On this machine* (where conversations are kept, which secrets exist, what is wrong with `.env`), and a warning when the bridge in use is another version than the app, which happens when another Werkbank app started it first.
+- New apps: `strictPort` (the browser keeps an app's data per address), `.env.example`, and `.env` and `.werkbank` in `.gitignore`. The development skill's rule check finds credentials in source, secrets in `VITE_` variables, and a `.env` that is readable by others or not ignored.
+- The Assistant panel: a search field over conversations, other conversations can be read while one is being answered, a notice when a reply never arrived, and a notice when the browser's storage is full.
+
+To adopt in an existing app:
+- Replace the hand-written `/__bridge` entry in `vite.config.ts` with `proxy: bridgeProxy()` from `@werkbank/bridge/vite`, add `strictPort: true` beside the port, and add `.env`, `.env.*` and `.werkbank` to `.gitignore`. Until then the app works as before, with everything in the browser only.
+- If more than one Werkbank app runs on the machine at a time, give each a bridge port of its own: `"werkbank": { "bridgePort": 8200 }` in its `package.json`. Agents registered by URL (`claude mcp add --transport http …`) need the new address; the *Assistant setup* window shows it.
+
+Also changed
+- A turn keeps writing to its conversation when its panel is closed. One turn runs at a time per page.
+- While a reply streams in, only Assistant panels re-render and the write to storage is delayed, instead of the whole workspace document being saved for every piece.
+
+Known limitations
+- Unchanged from 0.6.1: the Codex adapter's success path has not been run. Claude Code is the tested agent.
+- The browser checks now also run in CI, on Linux; they were written and run on macOS until this release.
+
 ## 0.6.2
 
 Fixed

@@ -45,6 +45,8 @@ export const restSchema = z.object({
   auth: z.enum(["none", "bearer", "header"]),
   /** Name of the header that carries the key, for auth "header". */
   headerName: z.string().trim().max(60),
+  /** The name of a secret in the app's .env file that holds the token or key. Empty: it is typed in for the session. */
+  secret: z.string().trim().regex(/^[A-Za-z0-9_]*$/, "A secret's name: letters, digits and underscores.").max(60).default(""),
   /** A path that answers when the API is up; used by "Test connection". */
   testPath: z.string().trim().regex(/^\/\S*$/, "A path starting with /."),
   scope: z.enum(["shared", "private"]),
@@ -56,6 +58,8 @@ export const mcpSchema = z.object({
   name: z.string().trim().min(2, "Give the connection a name.").max(40),
   url: z.string().trim().regex(/^https?:\/\/[^\s/]+/, "Enter the server's address, starting with http:// or https://."),
   auth: z.enum(["none", "bearer"]),
+  /** The name of a secret in the app's .env file that holds the token. Empty: it is typed in for the session. */
+  secret: z.string().trim().regex(/^[A-Za-z0-9_]*$/, "A secret's name: letters, digits and underscores.").max(60).default(""),
   scope: z.enum(["shared", "private"]),
 });
 export type McpConfig = z.infer<typeof mcpSchema>;
@@ -92,8 +96,8 @@ export const blank = (kind: Kind): AnyConfig =>
   kind === "mssql"
     ? { kind, ...blankConnection() }
     : kind === "rest"
-      ? { kind, name: "", baseUrl: "https://", auth: "none", headerName: "", testPath: "/", scope: "private" }
-      : { kind, name: "", url: "http://", auth: "none", scope: "private" };
+      ? { kind, name: "", baseUrl: "https://", auth: "none", headerName: "", secret: "", testPath: "/", scope: "private" }
+      : { kind, name: "", url: "http://", auth: "none", secret: "", scope: "private" };
 
 /** The simulated server. A real app replaces `connect` and `query` with calls to its backend. */
 export const SAMPLE_SERVER = { host: "sql-research-01", databases: ["Research", "Risk"], user: "analyst", password: "demo", version: "Microsoft SQL Server 2022 (simulated)" };
@@ -124,15 +128,15 @@ export const TABLES: Table[] = [
 
 type Listener = () => void;
 const KEY = "starter.connections.v2";
-const BRIDGE = "http://127.0.0.1:8787";
+const BRIDGE = "http://127.0.0.1:8199";
 const untested = { status: "untested" as const, message: "", testedAt: null };
 
 /** The connections a new user starts with: one of each kind. */
 const seeded = (): Connection[] => [
   { ...blankConnection(), id: "research", kind: "mssql", name: "Research warehouse", server: SAMPLE_SERVER.host, database: "Research", user: SAMPLE_SERVER.user, scope: "shared", ...untested },
   // Two real endpoints that exist whenever the app's own bridge is running, so these can be tried without any other server.
-  { id: "bridge-api", kind: "rest", name: "Bridge status API", baseUrl: BRIDGE, auth: "none", headerName: "", testPath: "/health", scope: "shared", ...untested },
-  { id: "app-mcp", kind: "mcp", name: "This app, over MCP", url: `${BRIDGE}/mcp`, auth: "none", scope: "shared", ...untested },
+  { id: "bridge-api", kind: "rest", name: "Bridge status API", baseUrl: BRIDGE, auth: "none", headerName: "", secret: "", testPath: "/health", scope: "shared", ...untested },
+  { id: "app-mcp", kind: "mcp", name: "This app, over MCP", url: `${BRIDGE}/mcp`, auth: "none", secret: "", scope: "shared", ...untested },
 ];
 
 export class ConnectionStore {
@@ -176,7 +180,16 @@ export class ConnectionStore {
     this.commit(this.connections.filter((c) => c.id !== id));
   }
 
-  /** The headers that authenticate a request to an HTTP API connection. */
+  /**
+   * What authenticates a request to an HTTP API connection. A secret from .env is named, and the bridge
+   * attaches its value; the page never has it. A key typed in for the session travels with the request.
+   */
+  private credentials(c: Extract<Connection, { kind: "rest" }>): { headers?: Record<string, string>; auth?: object } {
+    if (c.auth === "none") return {};
+    if (c.secret) return { auth: c.auth === "bearer" ? { secret: c.secret } : { secret: c.secret, as: "header", header: c.headerName } };
+    return { headers: this.headers(c) };
+  }
+
   private headers(c: Extract<Connection, { kind: "rest" }>): Record<string, string> {
     const secret = this.secrets.get(c.id);
     if (c.auth === "none") return {};
@@ -185,6 +198,7 @@ export class ConnectionStore {
   }
 
   private mcpParams(c: Extract<Connection, { kind: "mcp" }>) {
+    if (c.auth === "bearer" && c.secret) return { url: c.url, secret: c.secret };
     const token = this.secrets.get(c.id);
     if (c.auth === "bearer" && !token) throw new Error("Enter the token. It is not stored, so it is needed once per session.");
     return { url: c.url, ...(c.auth === "bearer" ? { token } : {}) };
@@ -206,7 +220,7 @@ export class ConnectionStore {
         if (connection.auth === "sql" && !this.secrets.has(id)) throw new Error("Enter the password. Passwords are not stored, so it is needed once per session.");
         message = await connect(connection, this.secrets.get(id) ?? "");
       } else if (connection.kind === "rest") {
-        const answer = await this.ask("http.get", { url: connection.baseUrl.replace(/\/$/, "") + connection.testPath, headers: this.headers(connection) });
+        const answer = await this.ask("http.get", { url: connection.baseUrl.replace(/\/$/, "") + connection.testPath, ...this.credentials(connection) });
         if (!answer.ok) throw new Error(`The API answered ${answer.status}${answer.status === 401 || answer.status === 403 ? ": the credentials were not accepted" : ""}.`);
         message = `HTTP ${answer.status}, ${answer.contentType.split(";")[0] || "no content type"}`;
       } else {
@@ -242,7 +256,7 @@ export class ConnectionStore {
   async apiGet(id: string, path: string): Promise<{ status: number; ok: boolean; contentType: string; body: unknown }> {
     const connection = this.ready(id, "rest");
     if (!/^\/\S*$/.test(path)) throw new Error("The path must start with / and contain no spaces.");
-    return this.ask("http.get", { url: connection.baseUrl.replace(/\/$/, "") + path, headers: this.headers(connection) });
+    return this.ask("http.get", { url: connection.baseUrl.replace(/\/$/, "") + path, ...this.credentials(connection) });
   }
 
   /** Call a tool of a connected MCP server. */

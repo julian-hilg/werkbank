@@ -2,6 +2,7 @@
 // Checks a Werkbank app for the rules a compiler does not see.
 //   node check.mjs [app folder]     default: the current folder (or its starter/ in a Werkbank checkout)
 // Exits with 1 when a rule is broken. Warnings do not fail the check.
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
 
@@ -38,13 +39,41 @@ for (const file of files) {
   );
   each(file, (l) => /node_modules\/@werkbank/.test(l), (at) => problems.push(`${at}  a path into node_modules/@werkbank. The framework is never reached by path.`));
   each(file, (l) => /keys:\s*["'`][^"'`]*\balt\b/i.test(l), (at) => problems.push(`${at}  an Alt-key shortcut. They collide with browser and system menus.`));
+  // A credential in source is in the repository and in every browser that loads the app.
+  each(
+    file,
+    (l) => /\bBearer\s+[A-Za-z0-9._~+/-]{24,}|\b(sk|pk|rk)-[A-Za-z0-9_-]{20,}|\bgh[pousr]_[A-Za-z0-9]{20,}|\bAKIA[0-9A-Z]{16}\b|\bxox[baprs]-[A-Za-z0-9-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY-----/.test(l),
+    (at) => problems.push(`${at}  what looks like a credential in source. Put it in .env as WERKBANK_SECRET_<NAME> and use it by name through the bridge.`),
+  );
+  each(
+    file,
+    (l) => /import\.meta\.env\.VITE_\w*(SECRET|TOKEN|PASSWORD|API_?KEY|PRIVATE)/i.test(l),
+    (at) => problems.push(`${at}  a secret read from a VITE_ variable. The build copies those into the page for anyone to read; use a WERKBANK_SECRET_ in .env through the bridge.`),
+  );
   if (isTool(file)) each(file, (l) => /\b(localStorage|sessionStorage)\b/.test(l), (at) => problems.push(`${at}  a panel using browser storage. Panel state goes through useToolState, data through a store.`));
   const text = file.lines.join("\n");
+  // A request that changes something elsewhere must wait for the person when an agent asks for it.
+  if (/["']http\.request["']/.test(text) && !/risk:\s*["'](external|irreversible)["']/.test(text))
+    problems.push(`${file.name}  uses "http.request" without an "external" (or "irreversible") command. A request that changes something outside the app goes through such a command, so an agent's waits for approval.`);
   if (/\bdefineTool\s*[<(]/.test(text)) {
     if (!/\bdescribe\s*[:(]/.test(text)) problems.push(`${file.name}  a tool without describe. Return the data behind the view so an agent can read it.`);
     if (!/\bstateSchema\b/.test(text)) warnings.push(`${file.name}  a tool without stateSchema: its saved state is not validated.`);
   }
 }
+
+// Secrets: the file that holds them must be yours alone and must never reach the repository.
+const envFile = join(root, ".env");
+if (existsSync(envFile)) {
+  if (process.platform !== "win32" && (statSync(envFile).mode & 0o077) !== 0) problems.push(".env  can be read by other users of this computer. Run: chmod 600 .env");
+  try {
+    execFileSync("git", ["-c", "core.fsmonitor=false", "check-ignore", "-q", ".env"], { cwd: root, stdio: "ignore" });
+  } catch (error) {
+    if (error?.status === 1) problems.push(".env  is not ignored by git. Add a line `.env` to .gitignore; if it was ever committed, change the secrets in it.");
+  }
+}
+const vite = ["ts", "js", "mjs"].map((ext) => join(root, `vite.config.${ext}`)).find((path) => existsSync(path));
+if (vite && /["']\/__bridge["']/.test(readFileSync(vite, "utf8")) && !/bridgeProxy/.test(readFileSync(vite, "utf8")))
+  warnings.push("vite.config  forwards to the bridge by hand. Use bridgeProxy() from @werkbank/bridge/vite, so conversations are kept in the app's folder and secrets from .env can be used.");
 
 // A tool nobody lists cannot be opened.
 const app = readFileSync(join(src, "app.ts"), "utf8");

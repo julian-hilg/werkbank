@@ -104,7 +104,7 @@ state unless the undone action itself changed it, so undoing a layout change
 never discards text typed since. There is no redo.
 
 **Agent bridge.** A Node process that is an MCP server on stdio and a WebSocket
-server on 127.0.0.1:8787, accepting only local origins. The app connects to it
+server on 127.0.0.1:8199, accepting only local origins. The app connects to it
 when the person switches "agent" on in the status bar. Three tools:
 `werkbank_describe`, `werkbank_commands`, `werkbank_run`. Agent commands run
 through the same registry; `external` and `irreversible` ones wait for approval
@@ -326,6 +326,31 @@ schema refuses a dimension outside its limits.
 - **The Codex adapter's success path is unverified** (see above). Agents other
   than Claude Code and Codex need an adapter for the in-app panel, though any
   MCP client can connect by URL without one.
+- **Secrets stay with the bridge.** A page that holds an API key has already
+  leaked it: to the browser's storage, to extensions, and to any agent that can
+  read the app. So an app names a secret and the bridge, which reads it from
+  the app's `.env`, attaches it to the one request. Each secret carries the
+  hosts it is for, because without that a page could ask the bridge to send
+  any secret anywhere. The folder is named by the app's dev server rather than
+  by the page for the same reason: a page must not be able to
+  claim another app's folder.
+- **One bridge per app.** A bridge holds its app's files and secrets, so apps
+  do not share one: each has its own process and port, and a bridge that finds
+  another app's bridge on its port stops instead of joining it. An earlier
+  version let the first app's bridge serve all of them; that made every app
+  depend on whichever version started first and needed extra care to keep
+  folders apart. Several copies still run for one app (the dev server's, and
+  one per agent session), the first as hub and the rest as peers.
+- **The app's storage is kept twice as well.** Workspaces, settings and custom
+  elements go to the browser and to one file in the app's folder; each key
+  carries the time it was written and the newer value wins.
+- **A tool can keep a tab group to itself** (`ownGroup`). The rule is one
+  number: how many groups hold such a panel together with others. No change to
+  the layout may raise it, whoever makes the change.
+- **Conversations are kept twice.** The browser's copy makes the app work
+  without a bridge; the file in the app's folder makes the conversations
+  outlive the browser's data. Both hold the same format and are merged, newest
+  copy of each conversation winning, so neither is the master.
 - **Custom elements live in one browser.** There is no server-side store, and
   delivering a submission to a tracker is a hook each app must implement.
 - **The MSSQL example is simulated in the page.** A real app runs the driver in

@@ -6,4 +6,6 @@ export * from "./werkbank";
 export * from "./settings";
 export * from "./custom";
 export * from "./assistant";
+export * from "./conversations";
+export * from "./mirrored-store";
 export * from "./guide";

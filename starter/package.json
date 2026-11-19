@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@werkbank/bridge": "*",
     "@werkbank/framework": "*",
     "d3-geo": "^3.1.2",
     "react": "^19.2.0",
@@ -17,5 +18,8 @@
     "world-atlas": "^2.0.2",
     "zod": "^4.6.7",
     "@werkbank/chart-libraries": "*"
+  },
+  "werkbank": {
+    "bridgePort": 8199
   }
 }

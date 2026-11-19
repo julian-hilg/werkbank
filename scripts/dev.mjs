@@ -3,7 +3,8 @@
 import { spawn } from "node:child_process";
 
 const children = [
-  spawn(process.execPath, ["packages/bridge/src/server.js", "--hub"], { stdio: "inherit" }),
+  // The bridge belongs to the reference app: its folder is where conversations are kept and secrets are read.
+  spawn(process.execPath, ["packages/bridge/src/server.js", "--hub", "--home", "starter"], { stdio: "inherit" }),
   spawn("npm", ["run", "dev", "-w", "starter"], { stdio: "inherit" }),
 ];
 const stop = () => children.forEach((child) => child.kill("SIGTERM"));

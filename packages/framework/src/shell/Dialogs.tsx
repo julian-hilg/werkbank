@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { FRAMEWORK_VERSION, assistantSetup, documentation, type SettingSpec } from "../core";
+import { getAgentLink } from "../bridge-client";
 import { copyText } from "../menu";
 import { Select } from "../controls";
 import { useDoc, useMeta, useWerkbank } from "../tools";
@@ -193,6 +194,13 @@ function AssistantSetupDialog({ onClose }: { onClose: () => void }) {
   const agentId = agentSetting || info?.defaultAgent || "";
   const agent = info?.agents.find((a) => a.id === agentId);
   const specs = Object.fromEntries(wb.settings.list().map((s) => [s.key, s]));
+  const home = useMeta((meta) => meta.home);
+  useSyncExternalStore(wb.conversations.subscribe, wb.conversations.list);
+  const kept = wb.conversations.health();
+  useSyncExternalStore(wb.files.subscribe, () => wb.files.health().onDisk);
+  const files = wb.files.health();
+  // A bridge left running from before an update, or (with bridges from before 0.7) one that another app started.
+  const otherVersion = bridge === "connected" && info && info.version !== FRAMEWORK_VERSION ? info.version : null;
 
   return (
     <Dialog title="Assistant setup" onClose={onClose} wide>
@@ -205,6 +213,21 @@ function AssistantSetupDialog({ onClose }: { onClose: () => void }) {
               ? "Waiting for the agent bridge. Start it with `npm run dev` (app and bridge together) or `npm run bridge`."
               : "The connection to the agent bridge is switched off."}
         </p>
+        {info?.foreign && (
+          <p className="wb-setup-warning" role="status">
+            This page is connected to another app's bridge: both apps were given the same port. Give this app a port of its own
+            (<code>"werkbank": {"{"} "bridgePort": … {"}"}</code> in its package.json) and start it again. Until then it has no file
+            store and no secrets, and agents may act on the wrong app.
+          </p>
+        )}
+        {otherVersion && (
+          <p className="wb-setup-warning" role="status">
+            The bridge is version {otherVersion}; this app is built with Werkbank {FRAMEWORK_VERSION}, so parts of this window may not
+            work. It is either left running from before an update (stop <code>npm run dev</code> and start it again) or it is another
+            app's bridge on the same port (give this app its own: <code>"werkbank": {"{"} "bridgePort": … {"}"}</code> in its
+            package.json).
+          </p>
+        )}
 
         <section>
           <h3>1. The assistant inside this app</h3>
@@ -259,6 +282,74 @@ function AssistantSetupDialog({ onClose }: { onClose: () => void }) {
             What an agent does here is recorded in the action history as the agent's, can be undone, and anything irreversible waits for
             your approval in this window. The same connection lets other programs use this app's data.
           </p>
+        </section>
+
+        <section className="wb-setup-home">
+          <h3>3. On this machine</h3>
+          <p className="wb-hint">
+            What belongs to this app but not in a browser is kept in the app's own folder, by the bridge: your conversations, and the
+            secrets the app may use to reach other services.
+          </p>
+          <SettingRow spec={specs["storage.onDisk"]!} />
+          <SettingRow spec={specs["assistant.conversationsOnDisk"]!} />
+          <p className="wb-setup-line" data-state={files.onDisk ? "ok" : files.error ? "bad" : undefined}>
+            <strong>Workspaces, settings, custom elements:</strong>{" "}
+            {files.onDisk
+              ? "kept in .werkbank/app-data.json in the app's folder, and in this browser."
+              : files.error
+                ? `kept in this browser only. Writing to the app's folder failed: ${files.error}`
+                : "kept in this browser only."}
+          </p>
+          <p className="wb-setup-line" data-state={kept.onDisk ? "ok" : kept.diskError ? "bad" : undefined}>
+            <strong>Conversations:</strong>{" "}
+            {kept.onDisk
+              ? "kept in .werkbank/conversations.json in the app's folder, and in this browser."
+              : kept.diskError
+                ? `kept in this browser only. Writing to the app's folder failed: ${kept.diskError}`
+                : bridge !== "connected"
+                  ? "kept in this browser only while the bridge is not connected."
+                  : !home?.store
+                    ? "kept in this browser only. This page did not reach the app's own bridge through its dev server."
+                    : "kept in this browser only, as chosen above."}
+          </p>
+          <p className="wb-setup-line" data-state={home?.problems.length ? "bad" : home?.secrets.length ? "ok" : undefined}>
+            <strong>Secrets:</strong>{" "}
+            {!home?.available
+              ? "none available. This page did not reach the app's own bridge through its dev server."
+              : home.secrets.length
+                ? `${home.secrets.length} in the app's .env file. The app uses them by name; their values stay with the bridge and are sent only to the hosts listed.`
+                : "none in the app's .env file."}
+          </p>
+          {home?.secrets.length ? (
+            <ul className="wb-setup-secrets">
+              {home.secrets.map((secret) => (
+                <li key={secret.name}>
+                  <code>{secret.name}</code> for {secret.hosts.join(", ")}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {home?.problems.map((problem) => (
+            <p key={problem} className="wb-setup-warning">
+              {problem}
+            </p>
+          ))}
+          {bridge === "connected" && !home?.available && (
+            <p className="wb-hint">
+              For both, the app's Vite config must use <code>bridgeProxy()</code> from <code>@werkbank/bridge/vite</code>, and the bridge
+              must be the app's own, version 0.7 or newer.
+            </p>
+          )}
+          {home?.available && (
+            <p className="wb-hint">
+              A secret is two lines in <code>.env</code>: <code>WERKBANK_SECRET_NAME=value</code> and{" "}
+              <code>WERKBANK_SECRET_NAME_HOSTS=api.example.com</code>. The file must be readable by you alone (<code>chmod 600 .env</code>)
+              and ignored by git.{" "}
+              <button className="wb-linkish" onClick={() => void getAgentLink(wb)?.refreshHome()}>
+                Check again
+              </button>
+            </p>
+          )}
         </section>
       </div>
     </Dialog>

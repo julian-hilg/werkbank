@@ -7,7 +7,7 @@ an app *on* Werkbank, read [`packages/framework/GUIDE.md`](packages/framework/GU
 
 ```bash
 npm install
-npm run dev          # reference app at http://localhost:5199, agent bridge on 127.0.0.1:8787
+npm run dev          # reference app at http://localhost:5199, agent bridge on 127.0.0.1:8199
 ```
 
 Node.js 22 or newer. The repository is an npm workspace:
@@ -56,6 +56,8 @@ packages/bridge/src
   mcp.js       the MCP surface (tools, resources, prompts)
   agents.js    adapters that start a coding agent for the in-app assistant
   outbound.js  HTTP and MCP-client requests the app asks the bridge to make
+  home.js      the app's own folder: the files it keeps (.werkbank/) and its secrets (.env)
+  vite.js      bridgeProxy(), what an app's dev server uses to reach the bridge and name its folder
 ```
 
 Rules enforced by `packages/framework/test/boundaries.test.ts`:
@@ -66,6 +68,22 @@ Rules enforced by `packages/framework/test/boundaries.test.ts`:
 
 [`docs/design.md`](docs/design.md) records the decisions and the reasons for them. Read
 it before changing how commands, the workspace document or the bridge work.
+
+## Secrets and the app's folder
+
+`packages/bridge/src/home.js` is the security-sensitive part of the bridge;
+its header comment states the rules, and `packages/bridge/test/home.test.ts`
+runs them against the real server. When changing it:
+
+- A secret's value may appear in exactly one place outside the bridge: the
+  outgoing request to one of its hosts. Not in a result, an error, a log line,
+  `process.env`, or the environment of an agent the bridge starts.
+- Nothing a page sends is a path. The folder comes from the dev server's
+  header, accepted only when the page's Origin equals the Host; files are
+  chosen from a fixed list by name.
+- Refuse rather than warn: a `.env` that others can read, that is a link, or
+  that git could commit yields no secrets.
+- Every rule has a test that fails without it. Add the test first.
 
 ## Framework or app?
 
@@ -112,10 +130,12 @@ All three packages share one version.
 1. Set the version in `packages/*/package.json`, the root `package.json` and
    `FRAMEWORK_VERSION` in `packages/framework/src/core/werkbank.ts`. A unit
    test fails if they disagree.
-2. Move the changelog's entries under the new version.
+2. Rename the changelog's "Unreleased" heading to the new version. Between
+   releases, every change is noted under "Unreleased" at the top; commits to
+   `main` do not need a release, and apps see them only after the next tag.
 3. Run `npm test`, `npm run typecheck`, `npm run check` (with `npm run dev`
    running) and `npm run check:app`.
-4. Commit, then tag and push: `git tag v0.6.2 && git push --follow-tags`.
+4. Commit, then tag and push: `git tag v0.7.0 && git push --follow-tags`.
 
 The `Release` workflow builds the tarballs and attaches them to a GitHub
 release. A published version is never rebuilt or replaced: apps record the

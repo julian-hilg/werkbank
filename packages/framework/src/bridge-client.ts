@@ -1,4 +1,4 @@
-import { ELEMENT_API, type AssistantInfo, type Werkbank } from "./core";
+import { ELEMENT_API, type AssistantInfo, type HomeInfo, type Werkbank } from "./core";
 
 /** What the chat agent reports while it works on one message. */
 export type ChatEvent =
@@ -39,13 +39,24 @@ export class AgentLink {
   private turns = new Map<string, ChatListener>();
   private services = new Map<string, (result: ServiceResult) => void>();
   private unwatch: () => void = () => {};
+  private unwatchSettings: () => void = () => {};
   constructor(
     private wb: Werkbank,
     private url: string,
   ) {
     this.open();
     this.unwatch = this.watch();
+    // Switching "keep conversations in the app's folder" takes effect at once.
+    const choices = () => `${wb.settings.get<boolean>("assistant.conversationsOnDisk")} ${wb.settings.get<boolean>("storage.onDisk")}`;
+    let onDisk = choices();
+    this.unwatchSettings = wb.settings.subscribe(() => {
+      const next = choices();
+      if (next === onDisk) return;
+      onDisk = next;
+      void this.refreshHome();
+    });
     window.addEventListener("focus", this.reportActive);
+    window.addEventListener("pagehide", this.flushFiles);
     document.addEventListener("visibilitychange", this.reportActive);
   }
 
@@ -81,7 +92,10 @@ export class AgentLink {
       } catch {
         return;
       }
-      if (message.welcome) return wb.setMeta({ assistant: message.welcome });
+      if (message.welcome) {
+        wb.setMeta({ assistant: message.welcome });
+        return void this.useHome(message.welcome.home === true);
+      }
       if (message.service) {
         const resolve = this.services.get(message.service.id);
         this.services.delete(message.service.id);
@@ -97,8 +111,10 @@ export class AgentLink {
     };
     socket.onclose = () => {
       this.failTurns("The connection to the bridge was lost.");
+      wb.conversations.detach();
+      wb.files.detach();
       if (this.stopped) return;
-      wb.setMeta({ bridge: "connecting" });
+      wb.setMeta({ bridge: "connecting", home: null });
       this.timer = setTimeout(() => this.open(), this.delay);
       this.delay = Math.min(this.delay * 2, 10_000);
     };
@@ -210,6 +226,56 @@ export class AgentLink {
     };
   }
 
+  /**
+   * The app's folder on this machine, if the bridge was told one: ask what is there (the names of
+   * the secrets, never their values) and keep the conversations in a file there as well.
+   */
+  private async useHome(offered: boolean): Promise<void> {
+    const wb = this.wb;
+    const info = offered ? await this.service("home.info", {}) : null;
+    const home = info?.ok ? (info.value as HomeInfo) : null;
+    wb.setMeta({ home });
+    const socket = this.socket;
+    const usable = Boolean(home?.store) && this.socket === socket;
+    const call = async (name: string, params: object) => {
+      const result = await this.service(name, params);
+      if (!result.ok) throw new Error(result.error);
+      return result.value;
+    };
+    const file = (name: string) => ({
+      read: async () => ((await call("store.read", { name })) as { text: string | null }).text,
+      write: async (text: string) => void (await call("store.write", { name, text })),
+    });
+    if (usable && wb.settings.get<boolean>("assistant.conversationsOnDisk")) void wb.conversations.attach(file("conversations"));
+    else wb.conversations.detach();
+    if (!(usable && wb.settings.get<boolean>("storage.onDisk"))) return wb.files.detach();
+    const replaced = await wb.files.attach(file("data"));
+    if (!replaced.length) return;
+    // The app's folder held newer workspaces or settings than this browser. The running app has not read them.
+    if (wb.files.startedEmpty && !this.restored) {
+      // A browser that knew nothing of the app (new, or its data was cleared): start again with what was kept, before the person has done anything.
+      this.restored = true;
+      try {
+        if (sessionStorage.getItem("werkbank.restored") !== wb.config.appId) {
+          sessionStorage.setItem("werkbank.restored", wb.config.appId);
+          return location.reload();
+        }
+      } catch {
+        /* no session storage: fall through to the notice */
+      }
+    }
+    const note = "Newer workspaces or settings were found in the app's folder. Reload the page to use them.";
+    if (!wb.getMeta().notes.includes(note)) wb.setMeta({ notes: [...wb.getMeta().notes, note] });
+  }
+  private restored = false;
+
+  /** Ask the bridge again what the app's folder holds, for example after the person edited `.env`. */
+  refreshHome(): Promise<void> {
+    return this.useHome(this.wb.getMeta().assistant?.home === true);
+  }
+
+  private flushFiles = (): void => this.wb.files.flush();
+
   private failTurns(error: string): void {
     const listeners = [...this.turns.values()];
     this.turns.clear();
@@ -251,10 +317,14 @@ export class AgentLink {
     this.stopped = true;
     this.unwatch();
     window.removeEventListener("focus", this.reportActive);
+    window.removeEventListener("pagehide", this.flushFiles);
     document.removeEventListener("visibilitychange", this.reportActive);
     if (this.timer) clearTimeout(this.timer);
     this.socket?.close();
-    this.wb.setMeta({ bridge: "off", assistant: null });
+    this.unwatchSettings();
+    this.wb.conversations.detach();
+    this.wb.files.detach();
+    this.wb.setMeta({ bridge: "off", assistant: null, home: null });
   }
 }
 

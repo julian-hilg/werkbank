@@ -81,3 +81,17 @@ export function outline(layout: Layout, title: (tabId: string) => string): unkno
     ...(layout.maximizedTabsetId ? { maximized: layout.maximizedTabsetId } : {}),
   };
 }
+
+/**
+ * How many tab groups hold a panel that wants a group to itself together with other panels.
+ * A change to the layout must not raise this number; that is the whole rule.
+ */
+export function crowdedGroups(layout: Layout, alone: (tabId: string) => boolean): number {
+  return tabsets(layout).filter((set) => set.tabs.length > 1 && set.tabs.some((tab) => alone(tab.id))).length;
+}
+
+/** Whether a panel may join a tab group: not if it wants a group to itself, and not if a panel there does. */
+export function mayJoin(set: LayoutTabset | undefined, tabId: string, alone: (tabId: string) => boolean): boolean {
+  const others = set?.tabs.filter((tab) => tab.id !== tabId) ?? [];
+  return others.length === 0 || (!alone(tabId) && !others.some((tab) => alone(tab.id)));
+}

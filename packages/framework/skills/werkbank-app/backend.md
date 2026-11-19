@@ -147,13 +147,46 @@ export const entryCommands: Command<Werkbank, any>[] = [
 - `assistant.brief`: what the app is for, which data is real, what needs care.
   Update it when the feature changes the answer.
 
-## 5. Reaching outside
+## 5. Reaching outside, and secrets
 
-A browser page cannot call most APIs. Ask the bridge:
-`await bridgeService(wb, "http.get" | "mcp.tools" | "mcp.call", params)` returns
+A browser page cannot call most APIs, and must never hold a key. Ask the bridge:
+`await bridgeService(wb, "http.get" | "http.request" | "mcp.tools" | "mcp.call", params)` returns
 `{ ok, value }` or `{ ok: false, error }`. Call it from a command's `run`.
-Credentials and database drivers belong in a server of the app's own, never in
-the browser; a command that writes there is `external`.
+
+A key, token or password goes in the app's `.env` file and nowhere else:
+
+```
+WERKBANK_SECRET_WEATHER=the-key
+WERKBANK_SECRET_WEATHER_HOSTS=api.weather.example
+```
+
+and is used by name. The bridge attaches the value, to those hosts only, and
+strips it from the answer; the app and the agent never see it.
+
+```ts
+run: async ({ wb }, i: { city: string }) => {
+  const result = await bridgeService(wb, "http.get", { url: `https://api.weather.example/v1/${encodeURIComponent(i.city)}`, auth: { secret: "WEATHER" } });
+  if (!result.ok) throw new Error(result.error);
+  return (result.value as { body: unknown }).body;
+},
+```
+
+- `auth: { secret, as: "header", header: "x-api-key" }` for APIs that do not use `Authorization: Bearer`.
+  For another MCP server: `{ url, secret: "NAME" }` with `mcp.tools` and `mcp.call`.
+- Which secrets exist (names and hosts, never values): `useMeta((m) => m.home?.secrets)`,
+  and the Assistant setup window shows them with anything wrong in `.env`.
+- **Never** put a credential in `src/`, a setting, panel state, a store, `localStorage`, a
+  `VITE_` variable, a log line, an error message or `describe`. Never read, print or
+  commit `.env`; when a person needs a secret, tell them the two lines to add.
+- `.env` must be readable by its owner alone (`chmod 600 .env`) and ignored by git;
+  the bridge uses no secret otherwise. `npm run check:rules` checks both.
+- **Writing to an API:** `bridgeService(wb, "http.request", { url, method: "POST", json: {...}, auth: { secret } })`
+  (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`; `body` for text instead of `json`). It changes
+  something outside the app, so it is only ever called from a command with
+  `risk: "external"` (or `"irreversible"` for a delete that cannot be taken back): an
+  agent's request then waits for the person's approval, with the exact input shown.
+  `npm run check:rules` refuses a file that uses it without such a command.
+- Database drivers and long-running jobs belong in a server of the app's own.
 
 ## 6. Test it
 

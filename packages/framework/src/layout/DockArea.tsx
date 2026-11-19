@@ -18,6 +18,8 @@ import {
   type WorkspaceNode,
 } from "react-resizable-panels";
 import {
+  crowdedGroups,
+  mayJoin,
   tabIds,
   tabsetOf,
   tabsets,
@@ -149,6 +151,8 @@ export function DockArea({ wb, renderPanel, renderTab, renderToolbar, renderEmpt
     const model = () => fromEngine(ws().getModel());
     const elements = () => [...(root.current?.querySelectorAll<HTMLElement>("[data-tabset]") ?? [])];
     const idOf = (el: HTMLElement) => el.getAttribute("data-tabset-id") ?? el.id;
+    const alone = (tabId: string) => wb.keepsOwnGroup(tabId);
+    const engineActive = () => (placed.current && ref.current ? tabsetOf(model(), placed.current)?.id : undefined) ?? ref.current?.getActiveTabsetId();
     const place = (tabId: string) => {
       placed.current = tabId;
     };
@@ -165,6 +169,12 @@ export function DockArea({ wb, renderPanel, renderTab, renderToolbar, renderEmpt
         ws().setModel(toEngine(layout));
       },
       addTab: (tab, target) => {
+        // A panel that keeps a group to itself goes beside the group it was aimed at, not into it; so does a panel aimed at such a group.
+        const layout = model();
+        const aimed = "tabsetId" in (target ?? {}) ? (target as { tabsetId: string; region?: string }) : undefined;
+        const intoGroup = !target || (aimed && (aimed.region === undefined || aimed.region === "center"));
+        const group = tabsets(layout).find((set) => set.id === (aimed?.tabsetId ?? engineActive())) ?? tabsets(layout).find((set) => set.tabs.length > 0);
+        if (intoGroup && group && !mayJoin(group, tab.id, alone)) target = { tabsetId: group.id, region: "right" };
         const added = ws().addTab(toTab(tab), target ? { target } : undefined);
         if (added) place(tab.id);
         return added;
@@ -182,12 +192,24 @@ export function DockArea({ wb, renderPanel, renderTab, renderToolbar, renderEmpt
           ws().selectTab(id);
           // Its group is now the active one: the next panel opens there.
           place(id);
+          // Show where the person was taken: the tab lights up for a moment.
+          requestAnimationFrame(() => {
+            const tab = [...(root.current?.querySelectorAll<HTMLElement>("[data-tab-id]") ?? [])].find((el) => el.getAttribute("data-tab-id") === id);
+            if (!tab) return;
+            tab.removeAttribute("data-arrived");
+            void tab.offsetWidth; // start the animation again if it is still running
+            tab.setAttribute("data-arrived", "");
+            setTimeout(() => tab.removeAttribute("data-arrived"), 1200);
+          });
           return;
         }
         // The tab lives in a window of its own: bring that window forward.
         for (const p of popoutsRef.current.popouts) if ([...p.window.document.querySelectorAll("[data-tab-id]")].some((el) => el.getAttribute("data-tab-id") === id)) p.window.focus();
       },
       moveTab: (id, target) => {
+        const aimed = "tabsetId" in target ? (target as { tabsetId: string; region?: string }) : undefined;
+        const group = aimed && (aimed.region === undefined || aimed.region === "center") ? tabsets(model()).find((set) => set.id === aimed.tabsetId) : undefined;
+        if (group && !mayJoin(group, id, alone)) target = { tabsetId: group.id, region: "right" };
         ws().moveTab(id, target);
         place(id);
       },
@@ -283,10 +305,14 @@ export function DockArea({ wb, renderPanel, renderTab, renderToolbar, renderEmpt
     renderDragPreview: useCallback((tab: TabNode<null>) => wb.titleOf(tab.id), [wb]),
     // Every close goes through the command registry, so it is logged and undoable.
     onBeforeModelChange: useCallback(
-      ({ reason, removedTabs }: { reason: string; removedTabs: TabNode<null>[] }) => {
-        if (reason !== "close") return true;
-        removedTabs.forEach((tab) => void wb.run("panel.close", { id: tab.id }));
-        return false;
+      ({ reason, removedTabs, model, prevModel }: { reason: string; removedTabs: TabNode<null>[]; model: Parameters<typeof fromEngine>[0]; prevModel: Parameters<typeof fromEngine>[0] }) => {
+        if (reason === "close") {
+          removedTabs.forEach((tab) => void wb.run("panel.close", { id: tab.id }));
+          return false;
+        }
+        // A person's drag must not stack a panel that keeps a group to itself with another: such a drop is left undone.
+        const alone = (tabId: string) => wb.keepsOwnGroup(tabId);
+        return crowdedGroups(fromEngine(model), alone) <= crowdedGroups(fromEngine(prevModel), alone);
       },
       [wb],
     ),

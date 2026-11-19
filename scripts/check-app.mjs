@@ -77,6 +77,10 @@ try {
   run(`npm run werkbank:update -- --from "${join(repo, "release")}"`, app);
   for (const file of ["SKILL.md", "backend.md", "frontend.md", "scripts/check.mjs", "scripts/dev.mjs"]) if (!existsSync(join(skill, file))) throw new Error(`The update did not restore the skill's ${file}.`);
   run("npm run check:rules", app);
+  // Secrets: a new app ignores .env and what it keeps on this machine, and uses the bridge's proxy helper.
+  const ignored = readFileSync(join(app, ".gitignore"), "utf8").split("\n");
+  if (!ignored.includes(".env") || !ignored.includes(".werkbank") || !existsSync(join(app, ".env.example"))) throw new Error("The scaffold does not keep secrets and local files out of the repository.");
+  if (!readFileSync(join(app, "vite.config.ts"), "utf8").includes("bridgeProxy()")) throw new Error("The scaffold does not use bridgeProxy().");
   writeFileSync(join(app, "src/tools/broken.tsx"), `import { defineTool } from "@werkbank/framework/dist/index.js";\nexport const broken = defineTool({ id: "broken", title: "Broken", component: () => <select style={{ color: "#ff0000" }} /> });\n`);
   let caught = false;
   try {

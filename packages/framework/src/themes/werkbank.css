@@ -440,6 +440,15 @@ input.wb-select { cursor: text; min-width: 0; }
   min-width: 0;
   overflow: hidden;
 }
+/* The tab a person was just taken to (by clicking an open tool, or by an agent) lights up for a moment. */
+@keyframes wb-arrived {
+  0%, 40% { box-shadow: inset 0 0 0 2px var(--wb-accent); }
+  100% { box-shadow: inset 0 0 0 2px transparent; }
+}
+.wb-tab[data-arrived] { animation: wb-arrived 1.1s ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .wb-tab[data-arrived] { animation-duration: 2s; animation-timing-function: step-end; }
+}
 .wb-tab {
   display: flex;
   align-items: center;
@@ -979,6 +988,15 @@ i.wb-link-dot {
   padding: 6px 8px 8px;
   border-top: 1px solid var(--wb-grid);
 }
+.wb-chat-compose { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.wb-chat-compose .wb-chat-input { width: 100%; }
+.wb-chat-attach { display: flex; flex-wrap: wrap; gap: 3px; }
+.wb-chat-attach .wb-badge { cursor: pointer; font: inherit; }
+.wb-chat-attached { display: block; margin-top: 2px; font-size: calc(var(--wb-font-size) - 1px); opacity: 0.8; }
+.wb-chat-suggestions { display: flex; flex-wrap: wrap; gap: 4px; padding: 2px 0 6px; }
+.wb-chat-suggestions .wb-button { white-space: normal; text-align: left; }
+.wb-chat-turn { margin: -2px 0 6px; }
+.wb-chat-overview-head { display: flex; align-items: center; gap: 6px; padding: 3px; }
 .wb-chat-input {
   resize: none;
   padding: 4px 6px;
@@ -1262,6 +1280,12 @@ fieldset.wb-control {
   overflow-wrap: anywhere;
 }
 .wb-setup-prompt { height: 150px; resize: vertical; }
+.wb-setup-warning { margin: 0; padding: 4px 8px; border-left: 3px solid var(--wb-warn); background: var(--wb-canvas-alt); }
+.wb-setup-line { margin: 0; }
+.wb-setup-line[data-state="bad"] strong { color: var(--wb-bad); }
+.wb-setup-line[data-state="ok"] strong { color: var(--wb-good); }
+.wb-setup-secrets { margin: 0; padding-left: 18px; }
+.wb-linkish { border: 0; padding: 0; background: none; color: var(--wb-accent); font: inherit; text-decoration: underline; cursor: pointer; }
 
 /* ---- crafter --------------------------------------------------------------- */
 .wb-crafter { height: 100%; display: flex; min-width: 0; }
@@ -1290,6 +1314,7 @@ fieldset.wb-control {
 .wb-crafter-actions { padding: 4px 8px; border-top: 1px solid var(--wb-grid); }
 .wb-crafter-api { flex: 1; margin: 0; padding: 10px; overflow: auto; white-space: pre-wrap; font: calc(var(--wb-font-size) - 1px) / 1.5 var(--wb-mono); }
 .wb-chat-rename { flex: 1; min-width: 0; margin: 3px; }
+.wb-chat-filter { display: block; width: calc(100% - 6px); margin: 3px; }
 .wb-chat-overview-open[hidden] { display: none; }
 
 /* ---- the app's logo and the documentation in the settings window ------------- */

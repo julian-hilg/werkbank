@@ -16,15 +16,20 @@
  * - The app's chat panel can ask the bridge to start an agent for one turn
  *   (see agents.js). That agent starts its own copy of this file.
  *
- * Several copies can therefore run at once. The first one to get the port is
- * the hub and holds the connection to the app; later ones join it as peers
- * and forward through it. If the hub exits, a peer takes over.
+ * Every app has a bridge of its own: its own port (see config.js) and its own
+ * folder, where the bridge keeps the app's files and reads its secrets. Several
+ * copies can still run for ONE app: the first one to get the port is the hub
+ * and holds the connection to the app; later ones (an agent's stdio copy) join
+ * it as peers and forward through it. If the hub exits, a peer takes over.
+ * A copy that finds another app's bridge on its port stops and says so; apps
+ * never share a bridge.
  *
  * Every command an agent runs goes through the app's command registry, so it
  * is validated, logged and undoable like a person's action.
  *
- * Flags: --hub   run without the MCP side (what `npm run dev` starts).
- * Env:   BRIDGE_PORT (8787), BRIDGE_ORIGINS (comma-separated; default any
+ * Flags: --hub         run without the MCP side (what `npm run dev` starts).
+ *        --home <dir>  the app's folder (default: where this was started).
+ * Env:   BRIDGE_PORT (default: "werkbank": { "bridgePort" } in the app's package.json, else 8787), BRIDGE_ORIGINS (comma-separated; default any
  *        http://localhost or http://127.0.0.1 origin), BRIDGE_AGENT (claude).
  */
 import { spawn } from "node:child_process";
@@ -37,9 +42,14 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { WebSocket, WebSocketServer } from "ws";
 import { agents, availableAgents, mcpUrl } from "./agents.js";
 import { createMcpServer } from "./mcp.js";
+import { flag, homeAt, homeId, portOf } from "./config.js";
+import { homeOf } from "./home.js";
 import { outbound } from "./outbound.js";
 
-const PORT = Number(process.env.BRIDGE_PORT ?? 8787);
+/** The app this bridge belongs to: its folder, and the port that goes with it. */
+const HOME = homeAt(flag("--home"));
+const HOME_ID = homeId(HOME);
+const PORT = portOf(HOME);
 const ALLOWED = process.env.BRIDGE_ORIGINS?.split(",").map((o) => o.trim());
 const LOCAL = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 const TIMEOUT_MS = 120_000; // long enough for a person to answer an approval prompt
@@ -208,7 +218,8 @@ function startHub(wss, http) {
     if (origin && !(ALLOWED ? ALLOWED.includes(origin) : LOCAL.test(origin))) return void res.writeHead(403).end("Forbidden");
     if (url.pathname === "/health") {
       res.writeHead(200, { "content-type": "application/json" });
-      return void res.end(JSON.stringify({ name: "werkbank-bridge", version: VERSION, apps: [...apps.values()].map((a) => a.title), mcp: mcpUrl(PORT) }));
+      // `home` names the app's folder without revealing it, so another copy can tell whether it serves the same app.
+      return void res.end(JSON.stringify({ name: "werkbank-bridge", version: VERSION, apps: [...apps.values()].map((a) => a.title), mcp: mcpUrl(PORT), home: HOME_ID }));
     }
     if (url.pathname !== "/mcp") return void res.writeHead(404).end("Not found");
     try {
@@ -262,7 +273,8 @@ function startHub(wss, http) {
 
     // A tab of the app.
     const appId = String(nextApp++);
-    const app = { socket, title: "the app", active: Date.now() };
+    // The app's own folder, if its dev server vouched for one. Files and secrets are only ever taken from there.
+    const app = { socket, title: "the app", active: Date.now(), home: homeOf(request, HOME) };
     apps.set(appId, app);
     socket.send(
       JSON.stringify({
@@ -272,6 +284,10 @@ function startHub(wss, http) {
           mcp: { url: mcpUrl(PORT), stdio: { command: "node", args: [fileURLToPath(import.meta.url)] }, port: PORT },
           agents: availableAgents().filter((a) => a.id !== "fake" || AGENT === "fake"),
           defaultAgent: AGENT,
+          // Whether this app may keep files and use secrets here; the details come from the "home.info" service.
+          home: Boolean(app.home),
+          // True when the page came through a dev server of another folder: an app that was pointed at this app's bridge.
+          foreign: !app.home && typeof request.headers["x-werkbank-home"] === "string",
         },
       }),
     );
@@ -293,7 +309,7 @@ function startHub(wss, http) {
       // The app asks the bridge to reach something a page cannot: an API, or another MCP server.
       if (message.service) {
         const { id, name, params } = message.service;
-        return void outbound(name, params).then((result) => socket.readyState === WebSocket.OPEN && socket.send(JSON.stringify({ service: { id, result } })));
+        return void outbound(name, params, { home: app.home }).then((result) => socket.readyState === WebSocket.OPEN && socket.send(JSON.stringify({ service: { id, result } })));
       }
       if (message.chatStop) return void turns.get(message.chatStop.id)?.kill("SIGTERM");
       const waiting = pending.get(message.id);
@@ -319,12 +335,33 @@ function startHub(wss, http) {
 
   process.on("exit", () => turns.forEach((child) => child.kill("SIGTERM")));
   settle();
-  log(`hub: app and agents connect on port ${PORT}; MCP over HTTP at ${mcpUrl(PORT)} (default chat agent: ${agents[AGENT]?.label ?? AGENT})`);
+  log(`hub: the bridge of ${HOME}; app and agents connect on port ${PORT}; MCP over HTTP at ${mcpUrl(PORT)} (default chat agent: ${agents[AGENT]?.label ?? AGENT})`);
 }
 
 // ---- peer: forwards through the hub that already owns the port --------------
 
-function startPeer() {
+/** Something else has the port. Join it if it is this app's bridge; otherwise stop, because apps do not share one. */
+async function startPeer() {
+  let other = null;
+  try {
+    other = await (await fetch(`http://127.0.0.1:${PORT}/health`, { signal: AbortSignal.timeout(3000) })).json();
+  } catch {
+    /* not a bridge, or one that is just going away */
+  }
+  if (other?.name !== "werkbank-bridge") {
+    // A bridge that is shutting down frees the port in a moment; anything else never will.
+    if (++attempts <= 6) return void setTimeout(connect, 500);
+    log(`port ${PORT} is used by another program. Free it, or give this app another port: "werkbank": { "bridgePort": <number> } in its package.json.`);
+    return process.exit(1);
+  }
+  if (other.home !== HOME_ID) {
+    log(
+      `port ${PORT} is used by the bridge of another Werkbank app${other.home ? "" : ` (version ${other.version}, from before each app had its own)`}. ` +
+        `Apps do not share a bridge: it holds an app's files and secrets. Give this app its own port: "werkbank": { "bridgePort": <number> } in ${HOME}/package.json, then start it again.`,
+    );
+    return process.exit(1);
+  }
+  attempts = 0;
   const socket = new WebSocket(`ws://127.0.0.1:${PORT}/peer`);
   let nextId = 1;
   const pending = new Map();
@@ -360,6 +397,8 @@ function startPeer() {
   socket.on("error", () => {}); // "close" follows and handles it
 }
 
+let attempts = 0;
+
 function connect() {
   // One port serves the app's WebSocket, other bridge copies, and MCP over HTTP.
   const http = createServer();
@@ -376,7 +415,7 @@ function connect() {
     log(`cannot listen on port ${PORT}: ${error.message}`);
     process.exit(1);
   });
-  http.listen(PORT, "127.0.0.1", () => startHub(wss, http));
+  http.listen(PORT, "127.0.0.1", () => ((attempts = 0), startHub(wss, http)));
 }
 
 const parse = (data) => {

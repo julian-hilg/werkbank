@@ -27,7 +27,8 @@ function check(draft: Draft) {
 }
 const STATUS = { ok: "connected", failed: "failed", untested: "not tested" } as const;
 const SECRET = { mssql: "Password", rest: "Token or key", mcp: "Token" } as const;
-const needsSecret = (d: Draft) => (d.kind === "mssql" ? d.auth === "sql" : d.auth !== "none");
+/** A password or key has to be typed in unless the connection names a secret from the app's .env file. */
+const needsSecret = (d: Draft) => (d.kind === "mssql" ? d.auth === "sql" : d.auth !== "none" && !d.secret);
 const pretty = (value: unknown) => (typeof value === "string" ? value : JSON.stringify(value, null, 2));
 
 /** Try a connected source: a GET against an API, or a call to one of an MCP server's tools. */
@@ -107,6 +108,8 @@ function Connections() {
   const [state, setState] = useToolState<State>();
   const list = useSyncExternalStore(store.subscribe, store.list);
   const bridge = useMeta((meta) => meta.bridge);
+  // The names of the secrets in the app's .env file. Their values stay with the bridge.
+  const secrets = useMeta((meta) => meta.home?.secrets) ?? [];
   const [secret, setSecret] = useState("");
   const [busy, setBusy] = useState(false);
   const selected = list.find((c) => c.id === state.selected) ?? null;
@@ -238,6 +241,28 @@ function Connections() {
               </>
             )}
 
+            {draft.kind !== "mssql" && draft.auth !== "none" && (
+              <div className="wb-control">
+                <label htmlFor="conn-secret">Where the {draft.kind === "rest" && draft.auth === "header" ? "key" : "token"} comes from</label>
+                <Select
+                  id="conn-secret"
+                  value={String(draft.secret ?? "")}
+                  options={[
+                    { value: "", label: "Typed in here, for this session" },
+                    ...secrets.map((s) => ({ value: s.name, label: s.name, hint: `for ${s.hosts.join(", ")}`, group: "From the app's .env file" })),
+                    ...(draft.secret && !secrets.some((s) => s.name === draft.secret) ? [{ value: String(draft.secret), label: String(draft.secret), hint: "not in .env", group: "From the app's .env file" }] : []),
+                  ]}
+                  onChange={(value) => edit({ secret: value })}
+                />
+                <span className="wb-control-label">
+                  {draft.secret
+                    ? "The bridge attaches it to requests for the hosts listed with it. Its value never reaches this page."
+                    : secrets.length
+                      ? "Prefer a secret from .env: it is not typed again and never held by the page."
+                      : "To avoid typing it each session, add it to the app's .env file as WERKBANK_SECRET_<NAME> with WERKBANK_SECRET_<NAME>_HOSTS (see Assistant setup)."}
+                </span>
+              </div>
+            )}
             {needsSecret(draft) && (
               <div className="wb-control">
                 <label htmlFor="conn-password">{SECRET[draft.kind]}</label>

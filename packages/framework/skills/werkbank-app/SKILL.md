@@ -18,7 +18,7 @@ A Werkbank app has two halves, at run time and in the code.
 
 | | Runs as | Code | May import |
 | --- | --- | --- | --- |
-| **Backend** | the agent bridge, `127.0.0.1:8787` | `src/<domain>/store.ts`, `commands.ts`, and what `src/app.ts` lists as `commands`, `topics`, `settings` | zod, types from `@werkbank/framework`. No React, no DOM |
+| **Backend** | the app's own agent bridge (its port is `werkbank.bridgePort` in `package.json`) | `src/<domain>/store.ts`, `commands.ts`, and what `src/app.ts` lists as `commands`, `topics`, `settings` | zod, types from `@werkbank/framework`. No React, no DOM |
 | **Frontend** | the app's dev server | `src/<domain>/hooks.ts`, `src/tools/*.tsx`, and `tools`, workspaces and `docs` in `src/app.ts` | the backend, React, `@werkbank/framework` |
 
 Build the backend first and finish it: **a feature is done in the backend when
@@ -38,9 +38,9 @@ npm run dev:stop      # stop this app's dev server and bridge, and say what is l
 
 Start with `npm run dev` as a background task; it starts both. Check `status`
 first and reuse what is running: a second copy takes another port and leaves a
-stale one behind. One bridge serves every Werkbank app on the machine, so a
-bridge started by another app is normal and `stop` leaves it running. Stop
-what you started when you are finished.
+stale one behind. Every app has a bridge of its own; if another project holds
+one of this app's ports, `status` says so and the fix is a port of its own,
+never sharing. Stop what you started when you are finished.
 
 ## Workflow
 
@@ -78,6 +78,8 @@ what you started when you are finished.
 - Ids are forever: `appId`, tool ids, command ids, setting keys. Saved
   workspaces and agents depend on them. Add, do not rename.
 - Restoring a workspace triggers nothing: no fetch, no post.
+- Secrets live in `.env` and are used by name through the bridge. Never in
+  source, settings, state or browser storage; never read or print `.env`.
 - Simulated or sample data says so on screen.
 - Do not commit unless asked.
 

@@ -4,6 +4,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { ResourceListChangedNotificationSchema, ResourceUpdatedNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { launch } from "./browser.mjs";
 
 const URL = process.env.APP_URL ?? "http://localhost:5199/";
@@ -44,7 +45,9 @@ const offline = await call("werkbank_describe");
 check("without an app it says how to connect one", offline.isError && /status bar/.test(offline.body.error));
 
 const browser = await launch();
-const page = await browser.newPage({ viewport: { width: 1440, height: 860 } });
+// A context of its own, so that a second tab can share this one's storage.
+const context = await browser.newContext({ viewport: { width: 1440, height: 860 } });
+const page = await context.newPage();
 const APP = `${URL}?bridge=ws://127.0.0.1:${PORT}`;
 await page.goto(APP);
 await page.evaluate(() => {
@@ -195,7 +198,7 @@ for (let i = 0; i < 400; i++) {
 const growing = lengths.every((n, i) => i === 0 || n > lengths[i - 1]);
 check("the reply appears piece by piece while it is being written", lengths.length >= 8 && growing && lengths.at(-1) === full.length, `${lengths.length} steps: ${lengths.slice(0, 12).join(",")}…`);
 check("the panel says what the agent is doing meanwhile", statuses.has("thinking…") && statuses.has("writing…"), [...statuses].join(" | "));
-check("the finished message is stored whole", (await page.evaluate(() => { const s = window.werkbank.getDoc().instances["chat-1"].state; return s.conversations.find((c) => c.id === s.active).messages.at(-1); })).text === full);
+check("the finished message is stored whole", (await page.evaluate(() => window.werkbank.conversations.get(window.werkbank.getDoc().instances["chat-1"].state.active).messages.at(-1))).text === full);
 
 // --- several tabs of the app at once ---
 const second = await browser.newPage({ viewport: { width: 1440, height: 860 } });
@@ -261,9 +264,26 @@ const briefing = await page.locator(".wb-setup-prompt").inputValue();
 check("the briefing is written for this app", /"Werkbank starter"/.test(briefing) && /paper orders/.test(briefing) && /Vol surface \(vol-surface\)/.test(briefing) && /werkbank_describe/.test(briefing) && /symbol, range, task, country/.test(briefing));
 await page.keyboard.press("Escape");
 
+// --- undoing what the assistant did while answering, and sending a panel's data along ---
+await page.locator("[data-testid=tab-chat-1]").click();
+const symbolBefore = await page.evaluate(() => window.werkbank.linksOf("chart-1").symbol);
+await say("show GOLF");
+const undoTurn = chat.locator(".wb-chat-turn button").last();
+check("a reply offers to undo what the assistant changed while writing it", (await page.evaluate(() => window.werkbank.linksOf("chart-1").symbol)) === "GOLF" && /Undo this change/.test(await undoTurn.innerText()) && (await undoTurn.isEnabled()));
+const offersBefore = await chat.locator(".wb-chat-turn button").count();
+await undoTurn.click();
+await page.waitForFunction((s) => window.werkbank.linksOf("chart-1").symbol === s, symbolBefore, { timeout: 4000 }).catch(() => {});
+const symbolAfterUndo = await page.evaluate(() => window.werkbank.linksOf("chart-1").symbol);
+check("and one click takes it back", symbolAfterUndo === symbolBefore && (await chat.locator(".wb-chat-turn button").count()) === offersBefore - 1, `${symbolAfterUndo}, was ${symbolBefore}; ${offersBefore} offers before`);
+await page.evaluate(() => window.werkbank.run("panel.setState", { id: "chat-1", patch: { attach: ["chart-1", "gone-9"] } }));
+check("a panel chosen to go with the message is shown above the message field", (await chat.locator(".wb-chat-attach .wb-badge").allInnerTexts()).join() === "Chart ×");
+await say("how many panels are open?");
+check("the sent message says which panel went with it, and the choice is used once", /with Chart$/.test((await chat.locator(".wb-chat-message[data-role=user]").last().innerText()).trim()) && (await chat.locator(".wb-chat-attach").count()) === 0);
+
 // --- conversations ---
 await page.locator("[data-testid=tab-chat-1]").click();
 await chat.locator("button", { hasText: "New chat" }).click();
+check("an empty conversation offers things to ask", (await chat.locator(".wb-chat-suggestions button").count()) === 3);
 await say("how many panels are open?");
 await chat.locator("button", { hasText: "Chats" }).click();
 const overview = await chat.locator(".wb-chat-overview-title").allInnerTexts();
@@ -278,6 +298,54 @@ await chat.locator(".wb-chat-overview-open").first().dblclick();
 await chat.locator("input[aria-label='Conversation name']").fill("Symbol questions");
 await page.keyboard.press("Enter");
 check("a conversation can be renamed", (await chat.locator(".wb-chat-overview-title").first().innerText()) === "Symbol questions" && (await chat.locator(".wb-chat-title").innerText()) === "Symbol questions");
+// --- the conversation store: conversations belong to the app, not to a panel or a workspace ---
+const stored = () => page.evaluate(() => window.werkbank.conversations.list().map((c) => c.title));
+await page.evaluate(() => window.werkbank.run("history.undo"));
+check("renaming is an action that can be undone", (await stored())[0].startsWith("show ECHO"), (await stored()).join(" | "));
+await page.evaluate(() => window.werkbank.run("conversation.rename", { id: window.werkbank.conversations.list()[0].id, title: "Symbol questions" }, "agent"));
+const listedByAgent = await call("werkbank_run", { id: "conversation.list", input: {} });
+const agentList = listedByAgent.body.value ?? listedByAgent.body.result ?? listedByAgent.body;
+check("an agent can list the conversations, without their text", agentList.length === 1 && agentList[0].title === "Symbol questions" && agentList[0].sent >= 3 && !JSON.stringify(listedByAgent.body).includes("now shows"), JSON.stringify(listedByAgent.body).slice(0, 200));
+const deletedByAgent = await page.evaluate(() => window.werkbank.run("conversation.delete", { id: window.werkbank.conversations.list()[0].id }, "agent"));
+const afterDelete = await stored();
+await page.evaluate(() => window.werkbank.run("history.undo"));
+check("a deleted conversation comes back with undo", deletedByAgent.ok && afterDelete.length === 0 && (await stored()).join() === "Symbol questions" && (await page.evaluate(() => window.werkbank.conversations.list()[0].messages.length)) >= 6);
+const clearedAll = await page.evaluate(() => window.werkbank.run("conversation.deleteAll"));
+const afterClear = await stored();
+await page.evaluate(() => window.werkbank.run("history.undo"));
+check("all conversations can be deleted at once, and that can be undone", clearedAll.ok && afterClear.length === 0 && (await stored()).join() === "Symbol questions");
+const importedCount = await page.evaluate(() =>
+  window.werkbank.run("conversation.import", { conversations: [{ id: "imp-1", title: "Imported", messages: [{ role: "user", text: "hi" }], sessionId: null, agent: null, updated: "2026-01-01T00:00:00.000Z" }, { broken: true }, "nonsense"] }),
+);
+const afterImport = await stored();
+await page.evaluate(() => window.werkbank.run("history.undo"));
+check("conversations can be imported from a file's contents, skipping broken ones, and the import undone", importedCount.ok && importedCount.value === 1 && afterImport.includes("Imported") && (await stored()).join() === "Symbol questions");
+check("a workspace does not contain the conversations", !(await page.evaluate(() => JSON.stringify(window.werkbank.getDoc()))).includes("now shows ECHO") && (await page.evaluate(() => localStorage.getItem(window.werkbank.conversations.key))).includes("now shows ECHO"));
+const closedPanel = await page.evaluate(async () => {
+  await window.werkbank.run("panel.close", { id: "chat-1" });
+  return (await window.werkbank.run("panel.open", { toolId: "chat" })).value;
+});
+const reopened = page.locator(`[data-testid=panel-${closedPanel}]`);
+await reopened.locator("button", { hasText: "Chats" }).click();
+check("closing the Assistant panel and opening a new one keeps the conversations", closedPanel !== "chat-1" && (await reopened.locator(".wb-chat-overview-title").allInnerTexts()).join() === "Symbol questions");
+await reopened.locator(".wb-chat-overview-open").first().click();
+check("and a conversation opens there with its messages", (await reopened.locator(".wb-chat-message[data-role=user]").first().innerText()) === "show ECHO");
+const otherTab = await context.newPage();
+await otherTab.goto(APP);
+await otherTab.waitForSelector("[data-testid=tab-chart-1]");
+check("another tab of the app sees the same conversations", (await otherTab.evaluate(() => window.werkbank.conversations.list().map((c) => c.title))).join() === "Symbol questions");
+await otherTab.evaluate(() => window.werkbank.conversations.create({ title: "Made in the other tab", agent: null }));
+await page.waitForFunction(() => window.werkbank.conversations.list().length === 2, null, { timeout: 4000 }).catch(() => {});
+check("and what it adds appears here without a reload", (await stored()).includes("Made in the other tab") && (await reopened.locator(".wb-chat-overview-title").count()) === 2, (await stored()).join(" | "));
+await otherTab.evaluate(() => window.werkbank.conversations.remove(window.werkbank.conversations.list().find((c) => c.title === "Made in the other tab").id));
+await page.waitForFunction(() => window.werkbank.conversations.list().length === 1, null, { timeout: 4000 }).catch(() => {});
+check("and what it deletes disappears here", (await stored()).join() === "Symbol questions");
+await otherTab.close();
+// Put the panel back where the rest of this script expects it.
+await page.evaluate(() => window.werkbank.run("workspace.reset"));
+await page.locator("[data-testid=tab-chat-1]").click();
+if (!(await chat.locator(".wb-chat-overview").count())) await chat.locator("button", { hasText: "Chats" }).click();
+check("a workspace reset leaves the conversations alone", (await chat.locator(".wb-chat-overview-title").allInnerTexts()).join() === "Symbol questions");
 await chat.locator("button", { hasText: "Chats" }).click();
 
 // --- connections to an HTTP API and to another MCP server, through the bridge ---
@@ -344,7 +412,85 @@ await page.locator("[data-testid=tab-chat-1]").click();
 await page.screenshot({ path: "scripts/shots/chat.png" });
 await page.reload();
 await page.waitForSelector("[data-testid=tab-chat-1]");
-check("the conversation survives a reload", (await page.evaluate(() => window.werkbank.getDoc().instances["chat-1"].state.conversations[0].messages.length)) >= 4);
+check("the conversations survive a reload", (await page.evaluate(() => window.werkbank.conversations.list()[0].messages.length)) >= 4);
+// A workspace saved or exported before the conversation store existed carries conversations in the Assistant panel's
+// state. Loading it moves them into the store, and the ones already there stay.
+const oldWorkspace = await page.evaluate(() => {
+  const doc = structuredClone(window.werkbank.getDoc());
+  doc.instances["chat-1"] = { ...doc.instances["chat-1"], version: 3, state: { active: "old-1", draft: "", showList: false, conversations: [{ id: "old-1", title: "From an older version", messages: [{ role: "user", text: "kept?" }, { role: "assistant", text: "Yes." }], sessionId: "s-old", agent: "fake", updated: "2026-01-02T03:04:05.000Z" }] } };
+  return doc;
+});
+const before = await page.evaluate(() => window.werkbank.conversations.list().length);
+const imported = await page.evaluate((doc) => window.werkbank.run("workspace.import", { doc }), oldWorkspace);
+const adopted = await page.evaluate(() => ({ inStore: window.werkbank.conversations.get("old-1"), count: window.werkbank.conversations.list().length, inDoc: JSON.stringify(window.werkbank.getDoc()).includes("kept?") }));
+check("conversations in a workspace from an older version move into the store", imported.ok && adopted.inStore?.sessionId === "s-old" && adopted.inStore.messages.length === 2 && adopted.count === before + 1 && !adopted.inDoc, JSON.stringify({ ok: imported.ok, error: imported.error, count: adopted.count, before, inDoc: adopted.inDoc }));
+await page.reload();
+await page.waitForSelector("[data-testid=tab-chat-1]");
+check("and are still there after a reload", (await page.evaluate(() => window.werkbank.conversations.get("old-1")?.title)) === "From an older version");
+
+// --- the app's own folder: conversations are kept there as well as in the browser ---
+// The pages above talk to this script's own bridge directly. A page that goes through the dev server's proxy, as a person's
+// does, is the one whose folder the bridge is told; that bridge is whichever one "npm run dev" is using.
+const viaProxyContext = await browser.newContext({ viewport: { width: 1440, height: 860 } });
+const viaProxy = await viaProxyContext.newPage();
+// A browser that holds nothing of the app loads once more when the app's folder has its workspaces and settings: wait until that is over.
+const settled = async (page) => {
+  const ready = () => page.waitForFunction(() => window.werkbank?.getMeta().bridge === "connected" && window.werkbank.getMeta().assistant && (window.werkbank.getMeta().assistant.home !== true || window.werkbank.getMeta().home !== null), null, { timeout: 8000 }).catch(() => {});
+  await ready();
+  await page.waitForTimeout(700);
+  await ready();
+};
+await viaProxy.goto(URL);
+await viaProxy.waitForSelector("[data-testid=tab-chat-1]");
+await settled(viaProxy);
+const bridgeInfo = await viaProxy.evaluate(() => ({ ...window.werkbank.getMeta().assistant, state: window.werkbank.getMeta().bridge }));
+if (bridgeInfo.home === true) {
+  // Settings are kept in the app's folder too, so an earlier run's choice would still be in force here.
+  await viaProxy.evaluate(() => window.werkbank.run("settings.set", { key: "assistant.conversationsOnDisk", value: true }));
+  // And a run that was stopped half-way may have left its conversation behind.
+  await viaProxy.waitForFunction(() => window.werkbank.conversations.health().onDisk, null, { timeout: 8000 }).catch(() => {});
+  await viaProxy.evaluate(() => {
+    for (const c of window.werkbank.conversations.list()) if (c.title === "Written by the browser check") window.werkbank.conversations.remove(c.id);
+    window.werkbank.conversations.flush();
+  });
+  await viaProxy.waitForFunction(() => window.werkbank.getMeta().home !== null && window.werkbank.conversations.health().onDisk, null, { timeout: 8000 }).catch(() => {});
+  const homeInfo = await viaProxy.evaluate(() => window.werkbank.getMeta().home);
+  check("through the dev server, the bridge knows the app's folder and offers its file store", homeInfo?.available === true && homeInfo.store === true && Array.isArray(homeInfo.secrets));
+  const diskFile = new globalThis.URL("../starter/.werkbank/conversations.json", import.meta.url);
+  const onDisk = () => (existsSync(diskFile) ? JSON.parse(readFileSync(diskFile, "utf8")).conversations.map((c) => c.title) : []);
+  const madeId = await viaProxy.evaluate(() => {
+    const made = window.werkbank.conversations.create({ title: "Written by the browser check", agent: null });
+    window.werkbank.conversations.flush();
+    return made.id;
+  });
+  for (let i = 0; i < 24 && !onDisk().includes("Written by the browser check"); i++) await viaProxy.waitForTimeout(250);
+  check("a conversation is also written to .werkbank/ in the app's folder, readable by its owner alone", onDisk().includes("Written by the browser check") && (process.platform === "win32" || (statSync(diskFile).mode & 0o077) === 0));
+  // A browser that has never seen the app gets the conversations from the folder.
+  const fresh = await (await browser.newContext()).newPage();
+  await fresh.goto(URL);
+  await settled(fresh);
+  await fresh.waitForFunction(() => window.werkbank?.conversations.list().some((c) => c.title === "Written by the browser check"), null, { timeout: 8000 }).catch(() => {});
+  check("a browser that never saw the app gets its conversations from the folder", (await fresh.evaluate(() => window.werkbank.conversations.list().map((c) => c.title))).includes("Written by the browser check"));
+  await fresh.close();
+  await viaProxy.evaluate(() => window.werkbank.run("assistant.setup"));
+  const homeText = await viaProxy.locator(".wb-setup-home").innerText();
+  check("the setup window says where conversations and secrets are kept", /kept in \.werkbank\/conversations\.json/.test(homeText) && /Secrets:/.test(homeText));
+  await viaProxy.keyboard.press("Escape");
+  await viaProxy.evaluate((id) => (window.werkbank.conversations.remove(id), window.werkbank.conversations.flush()), madeId);
+  for (let i = 0; i < 32 && onDisk().includes("Written by the browser check"); i++) await viaProxy.waitForTimeout(250);
+  check("deleting it removes it from the folder too", !onDisk().includes("Written by the browser check"));
+  await viaProxy.evaluate(() => window.werkbank.run("settings.set", { key: "assistant.conversationsOnDisk", value: false }));
+  await viaProxy.waitForFunction(() => !window.werkbank.conversations.health().onDisk, null, { timeout: 4000 }).catch(() => {});
+  check("switching the setting off stops using the folder at once", (await viaProxy.evaluate(() => window.werkbank.conversations.health().onDisk)) === false);
+  // Leave the app's folder as a person would want it: the setting on again, and written.
+  await viaProxy.evaluate(() => window.werkbank.run("settings.set", { key: "assistant.conversationsOnDisk", value: true }));
+  await viaProxy.waitForFunction(() => window.werkbank.conversations.health().onDisk, null, { timeout: 4000 }).catch(() => {});
+  await viaProxy.evaluate(() => window.werkbank.files.flush());
+  await viaProxy.waitForTimeout(500);
+} else {
+  console.log(`NOTE  the app's folder is not checked: ${bridgeInfo.state !== "connected" ? "the dev server's bridge is not connected" : `the bridge the dev server uses is version ${bridgeInfo.version}, started by another app`}. Run "BRIDGE_PORT=8793 npm run dev" for a bridge of this checkout.`);
+}
+await viaProxyContext.close();
 
 await browser.close();
 await client.close();

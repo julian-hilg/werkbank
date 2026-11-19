@@ -75,6 +75,8 @@ export const monitorTool = defineTool<State>({
   title: "Market monitor",
   glyph: "⌇",
   category: "Trading",
+  // A monitor is there to be seen at a glance: no other panel can be stacked on it and hide it.
+  ownGroup: true,
   version: 1,
   stateSchema,
   defaultState: () => ({ span: "session" }),

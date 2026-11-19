@@ -39,6 +39,8 @@ function cleanEnv() {
   const env = { ...process.env };
   for (const key of Object.keys(env)) {
     if (key === "CLAUDECODE" || key === "CLAUDE_PID" || key === "CLAUDE_EFFORT" || key.startsWith("CLAUDE_CODE_")) delete env[key];
+    // An app's secrets are never in this process's environment (see home.js); if a shell exported some, they stop here.
+    if (key.startsWith("WERKBANK_SECRET_")) delete env[key];
   }
   return env;
 }

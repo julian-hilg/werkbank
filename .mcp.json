@@ -2,7 +2,7 @@
   "mcpServers": {
     "werkbank": {
       "command": "node",
-      "args": ["packages/bridge/src/server.js"]
+      "args": ["packages/bridge/src/server.js", "--home", "starter"]
     }
   }
 }
