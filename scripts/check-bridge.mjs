@@ -216,8 +216,14 @@ check("a chat's agent acts on the tab that asked, not on another", symbols[0] ==
 await second.close();
 
 // --- the builder as MCP functions: an external agent builds a panel for the person ---
-const guide = await call("werkbank_element_guide");
-check("the element guide gives the API, the app's host functions and what is open", /werkbank\.data\(panelId\)/.test(guide.body.api) && guide.body.hostFunctions.some((f) => f.name === "query") && guide.body.topics.includes("symbol") && guide.body.openPanels.length > 5);
+// The second tab has just closed; until the bridge has noticed, a call may still be sent to it.
+const guideOk = (g) => /werkbank\.data\(panelId\)/.test(g.body?.api ?? "") && g.body.hostFunctions?.some((f) => f.name === "query") && g.body.topics?.includes("symbol") && g.body.openPanels?.length > 5;
+let guide = await call("werkbank_element_guide");
+for (let i = 0; i < 10 && !guideOk(guide); i++) {
+  await page.waitForTimeout(300);
+  guide = await call("werkbank_element_guide");
+}
+check("the element guide gives the API, the app's host functions and what is open", Boolean(guideOk(guide)), guideOk(guide) ? "" : JSON.stringify(guide.body).slice(0, 300));
 const elementSaved = await call("werkbank_save_element", {
   id: "via-mcp", title: "Built over MCP", description: "Shows the linked symbol.",
   source: `<p id="s">waiting</p><script>werkbank.onLink("symbol", (v) => { document.getElementById("s").textContent = "symbol: " + v; });<\/script>`,
